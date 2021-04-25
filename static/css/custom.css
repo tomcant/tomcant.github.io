@@ -1,0 +1,125 @@
+@media (min-width: 48em) {
+  html {
+    font-size: 16px;
+  }
+  .content {
+    max-width: 42rem;
+  }
+}
+
+@media (min-width: 58em) {
+  html {
+    font-size: 18px;
+  }
+}
+
+.sidebar {
+  background-color: #2f363d;
+}
+
+.sidebar-about h1 {
+  font-size: 3rem;
+}
+
+.post:last-child {
+  margin-bottom: 0;
+}
+
+.post h1 {
+  margin-top: 1rem;
+}
+
+.content {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+pre {
+  overflow-x: auto;
+}
+
+code {
+  white-space: pre;
+}
+
+.note {
+  margin-bottom: 2rem;
+}
+
+.note-title {
+  padding: .5rem 1rem;
+  color: #fff;
+  font-weight: bold;
+}
+
+.note-info .note-title {
+  background-color: #6a9fb5;
+}
+
+.note-success .note-title {
+  background-color: #90a959;
+}
+
+.note-warning .note-title {
+  background-color: #d28445;
+}
+
+.note-danger .note-title {
+  background-color: #ac4142;
+}
+
+.note-body {
+  padding: .5rem 1rem;
+  border-width: 1pt;
+  border-style: none solid solid;
+}
+
+.note-info .note-body {
+  border-color: #6a9fb5;
+}
+
+.note-success .note-body {
+  border-color: #90a959;
+}
+
+.note-warning .note-body {
+  border-color: #d28445;
+}
+
+.note-danger .note-body {
+  border-color: #ac4142;
+}
+
+.note-body pre {
+  background-color: #f0f0f0;
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+}
+
+.note-body > pre:last-child {
+  margin-bottom: .5rem;
+}
+
+.note-body > *:not(pre):last-child {
+  margin-bottom: 0;
+}
+
+.highlight-filename {
+  padding-left: 1rem;
+  border: 1px #909090;
+  font-family: Menlo, Monaco, "Courier New", monospace;
+  font-size: .75rem;
+}
+
+.highlight-filename.before {
+  padding-bottom: .5rem;
+  border-bottom-style: solid;
+}
+
+.highlight-filename.after {
+  padding-top: .5rem;
+  margin-top: -1rem;
+  margin-bottom: 1rem;
+  border-top-style: solid;
+}

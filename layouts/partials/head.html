@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.LanguageCode }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {{ hugo.Generator }}
+
+  {{ if .IsHome -}}
+  <title>Tom Cant &ndash; Developer</title>
+  <meta name="description" content="I write code for fun, and sometimes talk about it here.">
+  {{- else -}}
+  <title>{{ .Title }} &middot; Tom Cant &ndash; Developer</title>
+  {{ with .Description }}<meta name="description" content="{{.}}">{{end}}
+  {{- end }}
+
+  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/poole.css">
+  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/hyde.css">
+  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/custom.css">
+  {{ partial "head_fonts.html" . }}
+
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="{{ .Site.BaseURL }}apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="{{ .Site.BaseURL }}favicon.png">
+</head>

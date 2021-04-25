@@ -1,0 +1,22 @@
+baseURL: "https://tomcant.dev/blog/"
+languageCode: "en"
+title: "Tom Cant"
+theme: "hyde"
+enableEmoji: true
+googleAnalytics: "G-XW96D0BDH1"
+
+#menu:
+#  main:
+#    - identifier: home
+#      name: home
+#      url: /
+#    - identifier: posts
+#      name: posts
+#      url: /posts/
+
+markup:
+  highlight:
+    style: "friendly"
+  goldmark:
+    renderer:
+      unsafe: true
