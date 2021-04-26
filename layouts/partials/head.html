@@ -13,13 +13,13 @@
   {{ with .Description }}<meta name="description" content="{{.}}">{{end}}
   {{- end }}
 
-  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/print.css" media="print">
-  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/poole.css">
-  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/syntax.css">
-  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/hyde.css">
-  <link type="text/css" rel="stylesheet" href="{{ .Site.BaseURL }}css/custom.css">
+  <link type="text/css" rel="stylesheet" href="{{ "css/print.css" | relURL }}" media="print">
+  <link type="text/css" rel="stylesheet" href="{{ "css/poole.css" | relURL }}">
+  <link type="text/css" rel="stylesheet" href="{{ "css/syntax.css" | relURL }}">
+  <link type="text/css" rel="stylesheet" href="{{ "css/hyde.css" | relURL }}">
+  <link type="text/css" rel="stylesheet" href="{{ "css/custom.css" | relURL }}">
   {{ partial "head_fonts.html" . }}
 
-  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="{{ .Site.BaseURL }}apple-touch-icon-144-precomposed.png">
-  <link rel="shortcut icon" href="{{ .Site.BaseURL }}favicon.png">
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="{{ "apple-touch-icon-144-precomposed.png" | relURL}}">
+  <link rel="shortcut icon" href="{{ "favicon.png" | relURL}}">
 </head>
