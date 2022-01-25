@@ -1,5 +1,5 @@
 DOCKER = docker run --rm -it -v $(PWD):/src:rw,delegated
-IMAGE = klakegg/hugo:0.82.0-alpine
+IMAGE = klakegg/hugo:0.91.0-alpine
 
 .PHONY: run
 run:
