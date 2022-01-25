@@ -1,33 +1,103 @@
-<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=generator content="Hugo 0.82.0"><title>Running C++ in a Web Browser with WebAssembly &#183; Tom Cant &ndash; Developer</title><meta name=description content="A very basic intro to compiling and running C++ for the web."><link type=text/css rel=stylesheet href=/blog/css/print.css media=print><link type=text/css rel=stylesheet href=/blog/css/poole.css><link type=text/css rel=stylesheet href=/blog/css/syntax.css><link type=text/css rel=stylesheet href=/blog/css/hyde.css><link type=text/css rel=stylesheet href=/blog/css/custom.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700"><link rel=apple-touch-icon-precomposed sizes=144x144 href=/blog/apple-touch-icon-144-precomposed.png><link rel="shortcut icon" href=/blog/favicon.png></head><body><aside class=sidebar><div class="container sidebar-sticky"><div class=sidebar-about><a href=https://tomcant.dev/blog/><h1>Tom Cant</h1></a><p class=lead>Developer</p></div><a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></div></aside><main class="content container"><div class=post><h1>Running C++ in a Web Browser with WebAssembly</h1><time datetime=2021-04-25T00:00:00Z class=post-date>Sun, Apr 25, 2021</time><p>I recently started looking into compiling and running C++ for the web as a way to give some <a href=https://github.com/tomcant/tic-tac-toe-ai>old</a>
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Running C++ in a Web Browser with WebAssembly &#183; Tom Cant &ndash; Developer</title>
+<meta name=description content="A very basic intro to compiling and running C++ for the web.">
+<link type=text/css rel=stylesheet href=/blog/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/blog/css/poole.css>
+<link type=text/css rel=stylesheet href=/blog/css/syntax.css>
+<link type=text/css rel=stylesheet href=/blog/css/hyde.css>
+<link type=text/css rel=stylesheet href=/blog/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/blog/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/blog/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/blog/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Running C++ in a Web Browser with WebAssembly</h1>
+<time datetime=2021-04-25T00:00:00Z class=post-date>Sun, Apr 25, 2021</time>
+<p>I recently started looking into compiling and running C++ for the web as a way to give some <a href=https://github.com/tomcant/tic-tac-toe-ai>old</a>
 <a href=https://github.com/tomcant/sudoku-solver>projects</a> a much-needed makeover. In this post we&rsquo;ll look at some basic
-examples of compiling C++ and running it in a web browser.</p><h2 id=the-emscripten-build-environment>The Emscripten Build Environment</h2><p>We&rsquo;ll need the <a href=https://emscripten.org>Emscripten</a> SDK and accompanying tools to compile our code. The
+examples of compiling C++ and running it in a web browser.</p>
+<h2 id=the-emscripten-build-environment>The Emscripten Build Environment</h2>
+<p>We&rsquo;ll need the <a href=https://emscripten.org>Emscripten</a> SDK and accompanying tools to compile our code. The
 <a href=https://emscripten.org/docs/getting_started/downloads.html>docs</a> recommend installing them directly on our machine,
 but I&rsquo;ve never been much of a fan of that approach. Fortunately, there&rsquo;s an <a href=https://hub.docker.com/r/emscripten/emsdk>officially supported Docker image</a>
-we can use instead, so we&rsquo;ll prefix any commands with the following snippet:</p><div class=highlight><pre style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>docker run -v <span style=color:#007020;font-weight:700>$(</span><span style=color:#007020>pwd</span><span style=color:#007020;font-weight:700>)</span>:/src emscripten/emsdk:2.0.18 ...
-</code></pre></div><p>At the time of writing, the latest version of Emscripten is <code>2.0.18</code>, so we&rsquo;ll target that specifically.</p><h2 id=hello-webassembly>Hello, WebAssembly</h2><p>Let&rsquo;s start with the most basic example possible:</p><div class="highlight-filename before">hello.cpp</div><div class=highlight><pre style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cpp data-lang=cpp><span style=color:#007020>#include</span> <span style=color:#007020>&lt;iostream&gt;</span><span style=color:#007020>
+we can use instead, so we&rsquo;ll prefix any commands with the following snippet:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>docker run -v <span style=color:#007020;font-weight:700>$(</span><span style=color:#007020>pwd</span><span style=color:#007020;font-weight:700>)</span>:/src emscripten/emsdk:2.0.18 ...
+</code></pre></div><p>At the time of writing, the latest version of Emscripten is <code>2.0.18</code>, so we&rsquo;ll target that specifically.</p>
+<h2 id=hello-webassembly>Hello, WebAssembly</h2>
+<p>Let&rsquo;s start with the most basic example possible:</p>
+<div class="highlight-filename before">hello.cpp</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cpp data-lang=cpp><span style=color:#007020>#include</span> <span style=color:#007020>&lt;iostream&gt;</span><span style=color:#007020>
 </span><span style=color:#007020></span>
 <span style=color:#902000>int</span> <span style=color:#06287e>main</span>() {
   std<span style=color:#666>::</span>cout <span style=color:#666>&lt;&lt;</span> <span style=color:#4070a0>&#34;Hello, WebAssembly&#34;</span> <span style=color:#666>&lt;&lt;</span> std<span style=color:#666>::</span>endl;
 }
-</code></pre></div><p>Invoke the compiler as follows:</p><div class=highlight><pre style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>docker run -v <span style=color:#007020;font-weight:700>$(</span><span style=color:#007020>pwd</span><span style=color:#007020;font-weight:700>)</span>:/src emscripten/emsdk:2.0.18 <span style=color:#4070a0;font-weight:700>\
+</code></pre></div><p>Invoke the compiler as follows:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>docker run -v <span style=color:#007020;font-weight:700>$(</span><span style=color:#007020>pwd</span><span style=color:#007020;font-weight:700>)</span>:/src emscripten/emsdk:2.0.18 <span style=color:#4070a0;font-weight:700>\
 </span><span style=color:#4070a0;font-weight:700></span>  emcc hello.cpp -o hello.js
-</code></pre></div><p>We expect this to generate two files:</p><ul><li><code>hello.wasm</code> – a binary file to be executed in the browser</li><li><code>hello.js</code> – a script to load and execute the <code>.wasm</code></li></ul><p>These are the kind of files you add to <code>.gitignore</code> and build as part of CI/CD.</p><p>A simple <code>&lt;script></code> tag will be enough to run this example in a browser:</p><div class="highlight-filename before">index.html</div><div class=highlight><pre style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-html data-lang=html>&lt;<span style=color:#062873;font-weight:700>script</span> <span style=color:#4070a0>src</span><span style=color:#666>=</span><span style=color:#4070a0>&#34;hello.js&#34;</span>&gt;&lt;/<span style=color:#062873;font-weight:700>script</span>&gt;
+</code></pre></div><p>We expect this to generate two files:</p>
+<ul>
+<li><code>hello.wasm</code> – a binary file to be executed in the browser</li>
+<li><code>hello.js</code> – a script to load and execute the <code>.wasm</code></li>
+</ul>
+<p>These are the kind of files you add to <code>.gitignore</code> and build as part of CI/CD.</p>
+<p>A simple <code>&lt;script></code> tag will be enough to run this example in a browser:</p>
+<div class="highlight-filename before">index.html</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-html data-lang=html>&lt;<span style=color:#062873;font-weight:700>script</span> <span style=color:#4070a0>src</span><span style=color:#666>=</span><span style=color:#4070a0>&#34;hello.js&#34;</span>&gt;&lt;/<span style=color:#062873;font-weight:700>script</span>&gt;
 </code></pre></div><p>Emscripten&rsquo;s default behaviour is to call <code>main()</code> and relay any output on <code>stdout</code> to the developer console, so if it
-worked, you should see <em>Hello, WebAssembly</em> when the page loads.</p><div class="note note-info"><div class=note-title>Tip: run the examples with Docker/Nginx</div><div class=note-body><p>The generated JavaScript loads the compiled binary with an XHR request, which means the example won't work by
-simply loading the HTML file in a browser &ndash; we need a local web server instead.</p><p>An easy way to run the example on your <a href=http://localhost>localhost</a> is with the following command in
-the directory containing <code>index.html</code>:</p><pre><code>docker run -v <span style=color:#007020;font-weight:700>$(</span><span style=color:#007020>pwd</span><span style=color:#007020;font-weight:700>)</span>:/usr/share/nginx/html -p 80:80 nginx</code></pre></div></div><h2 id=beyond-the-basics>Beyond the Basics</h2><p>By this point, we have all we need to run basic C++ in the browser 🎉, but in order to actually do anything useful
+worked, you should see <em>Hello, WebAssembly</em> when the page loads.</p>
+<div class="note note-info">
+<div class=note-title>
+Tip: run the examples with Docker/Nginx
+</div>
+<div class=note-body>
+<p>
+The generated JavaScript loads the compiled binary with an XHR request, which means the example won't work by
+simply loading the HTML file in a browser &ndash; we need a local web server instead.
+</p>
+<p>
+An easy way to run the example on your <a href=http://localhost>localhost</a> is with the following command in
+the directory containing <code>index.html</code>:
+</p>
+<pre><code>docker run -v <span style=color:#007020;font-weight:700>$(</span><span style=color:#007020>pwd</span><span style=color:#007020;font-weight:700>)</span>:/usr/share/nginx/html -p 80:80 nginx</code></pre>
+</div>
+</div>
+<h2 id=beyond-the-basics>Beyond the Basics</h2>
+<p>By this point, we have all we need to run basic C++ in the browser 🎉, but in order to actually do anything useful
 we need to be able to interact with the compiled binary beyond the initial page load. Typically, we want to define a
-public interface of functions and/or classes for JavaScript to make use of.</p><p>Let&rsquo;s take the following C++ and see how to call <code>square()</code> in the browser:</p><div class="highlight-filename before">square.cpp</div><div class=highlight><pre style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cpp data-lang=cpp><span style=color:#007020;font-weight:700>extern</span> <span style=color:#4070a0>&#34;C&#34;</span> <span style=color:#902000>int</span> square(<span style=color:#902000>int</span> n) {
+public interface of functions and/or classes for JavaScript to make use of.</p>
+<p>Let&rsquo;s take the following C++ and see how to call <code>square()</code> in the browser:</p>
+<div class="highlight-filename before">square.cpp</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cpp data-lang=cpp><span style=color:#007020;font-weight:700>extern</span> <span style=color:#4070a0>&#34;C&#34;</span> <span style=color:#902000>int</span> square(<span style=color:#902000>int</span> n) {
   <span style=color:#007020;font-weight:700>return</span> n <span style=color:#666>*</span> n;
 }
 </code></pre></div><p>We&rsquo;ll talk about <code>extern "C"</code> later. This time we want to call a function other than <code>main()</code>, so we need to be more
-specific with the compiler:</p><div class=highlight><pre style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>docker run -v <span style=color:#007020;font-weight:700>$(</span><span style=color:#007020>pwd</span><span style=color:#007020;font-weight:700>)</span>:/src emscripten/emsdk:2.0.18 <span style=color:#4070a0;font-weight:700>\
+specific with the compiler:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>docker run -v <span style=color:#007020;font-weight:700>$(</span><span style=color:#007020>pwd</span><span style=color:#007020;font-weight:700>)</span>:/src emscripten/emsdk:2.0.18 <span style=color:#4070a0;font-weight:700>\
 </span><span style=color:#4070a0;font-weight:700></span>  emcc square.cpp -o square.js <span style=color:#4070a0;font-weight:700>\
 </span><span style=color:#4070a0;font-weight:700></span>    -s <span style=color:#4070a0>&#34;EXPORTED_FUNCTIONS=[&#39;_square&#39;]&#34;</span> <span style=color:#4070a0;font-weight:700>\
 </span><span style=color:#4070a0;font-weight:700></span>    -s <span style=color:#4070a0>&#34;EXPORTED_RUNTIME_METHODS=[&#39;cwrap&#39;]&#34;</span>
 </code></pre></div><p>We specify the name of our function (with a preceding underscore) to prevent the compiler from removing it as part of
 its &ldquo;dead code elimination&rdquo; process. We also told Emscripten to export <code>cwrap</code>, which is the JavaScript function we&rsquo;ll
-use to actually call <code>square()</code>.</p><p>A typical setup in HTML could look like this:</p><div class="highlight-filename before">index.html</div><div class=highlight><pre style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-html data-lang=html>&lt;<span style=color:#062873;font-weight:700>script</span>&gt;
+use to actually call <code>square()</code>.</p>
+<p>A typical setup in HTML could look like this:</p>
+<div class="highlight-filename before">index.html</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-html data-lang=html>&lt;<span style=color:#062873;font-weight:700>script</span>&gt;
   <span style=color:#007020;font-weight:700>var</span> Module <span style=color:#666>=</span> {
     onRuntimeInitialized<span style=color:#666>:</span> () =&gt; {
       <span style=color:#007020;font-weight:700>const</span> square <span style=color:#666>=</span> Module.cwrap(<span style=color:#4070a0>&#39;square&#39;</span>, <span style=color:#4070a0>&#39;number&#39;</span>, [<span style=color:#4070a0>&#39;number&#39;</span>]);
@@ -40,14 +110,30 @@ use to actually call <code>square()</code>.</p><p>A typical setup in HTML could 
 </code></pre></div><p>Here we set <code>Module.onRuntimeInitialized</code> to a callback function that Emscripten will execute when the binary file is
 ready. We then wrap our C++ function and store it in <code>square</code> so we can call it later. The second and third arguments to
 <code>cwrap()</code> describe the function signature: the return and parameter types, respectively. Finally, we call the wrapped
-function just like any other JavaScript function call.</p><p>Both the examples in this post are running on this page, too, so if you open the developer console you should see
+function just like any other JavaScript function call.</p>
+<p>Both the examples in this post are running on this page, too, so if you open the developer console you should see
 <em>5 squared is 25</em> and <em>Hello, WebAssembly</em>. If you don&rsquo;t, then either I screwed up (entirely possible), or your browser
 doesn&rsquo;t support WebAssembly yet (see <a href=https://caniuse.com/wasm>caniuse.com/wasm</a>). In any case, here&rsquo;s an interactive
-example:</p><div id=demo><input type=number style=width:4rem>
+example:</p>
+<div id=demo>
+<input type=number style=width:4rem>
 <button>Square</button>
-<span></span><script>const input=document.querySelector('input');input.value=1+Math.floor(Math.random()*100);var Module={onRuntimeInitialized:()=>{const a=Module.cwrap('square','number',['number']);document.querySelector('#demo button').addEventListener('click',()=>{document.querySelector('#demo span').innerHTML=`<code>${input.value} squared is ${a(input.value)}</code>`}),console.log(`5 squared is ${a(5)}`)}}</script><script src=wasm.js></script></div><h3 id=a-note-about-name-mangling>A note about &ldquo;name mangling&rdquo;</h3><p>If you&rsquo;re familiar with C/C++ then you might be wondering why we used <code>extern "C"</code> above. This tells the compiler to use
+<span></span>
+<script>const input=document.querySelector('input');input.value=1+Math.floor(Math.random()*100);var Module={onRuntimeInitialized:()=>{const a=Module.cwrap('square','number',['number']);document.querySelector('#demo button').addEventListener('click',()=>{document.querySelector('#demo span').innerHTML=`<code>${input.value} squared is ${a(input.value)}</code>`}),console.log(`5 squared is ${a(5)}`)}}</script>
+<script src=wasm.js></script>
+</div>
+<h3 id=a-note-about-name-mangling>A note about &ldquo;name mangling&rdquo;</h3>
+<p>If you&rsquo;re familiar with C/C++ then you might be wondering why we used <code>extern "C"</code> above. This tells the compiler to use
 C naming conventions for our function and avoids the <a href=https://en.wikipedia.org/wiki/Name_mangling>name mangling</a>
 process C++ uses to support function overloading. Without this, we&rsquo;d need to know ahead of time how the compiler will
-translate the name of our function so we can specify it during compilation – kind of a Catch-22!</p><h2 id=conclusion>Conclusion</h2><p>This post hardly scratches the surface of what&rsquo;s possible with WebAssembly, but hopefully these examples are enough to
+translate the name of our function so we can specify it during compilation – kind of a Catch-22!</p>
+<h2 id=conclusion>Conclusion</h2>
+<p>This post hardly scratches the surface of what&rsquo;s possible with WebAssembly, but hopefully these examples are enough to
 get someone off the ground. In the future I&rsquo;ll write about how I&rsquo;m using WebAssembly to bring some old projects to the
-web.</p></div></main><script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script></body></html>
+web.</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>

@@ -42,6 +42,10 @@ code {
   white-space: pre;
 }
 
+iframe {
+  border: none;
+}
+
 .note {
   margin-bottom: 2rem;
 }
@@ -107,7 +111,7 @@ code {
 
 .highlight-filename {
   padding-left: 1rem;
-  border: 1px #909090;
+  border: 1px #c0c0c0;
   font-family: Menlo, Monaco, "Courier New", monospace;
   font-size: .75rem;
 }
