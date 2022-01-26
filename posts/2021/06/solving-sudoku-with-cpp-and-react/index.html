@@ -1,0 +1,258 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Solving Sudoku with C++, WASM and React &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/blog/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/blog/css/poole.css>
+<link type=text/css rel=stylesheet href=/blog/css/syntax.css>
+<link type=text/css rel=stylesheet href=/blog/css/hyde.css>
+<link type=text/css rel=stylesheet href=/blog/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/blog/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/blog/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/blog/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Solving Sudoku with C++, WASM and React</h1>
+<time datetime=2021-06-30T00:00:00Z class=post-date>Wed, Jun 30, 2021</time>
+<p>In a <a href=/blog/posts/2021/04/running-cpp-in-a-web-browser-with-webassembly/>previous post</a> I talked about rebuilding some
+old C++ projects with WebAssembly and running them in a web browser. One such project was a Sudoku solver, and I want to
+share some recent progress in this post.</p>
+<p>Check out <a href=https://github.com/tomcant/sudoku-solver>the GitHub repo</a> if you&rsquo;re interested in seeing the full code. I&rsquo;ve also
+included a demo of the transformed app below.</p>
+<p>The original project was a command-line program which read a puzzle from <code>stdin</code> and printed the solution or an error
+message to <code>stdout</code>. Such a simple flow translates to the web quite easily; the puzzle can come from user input and can
+be output with basic HTML elements.</p>
+<h2 id=goals>Goals</h2>
+<ol>
+<li>To solve a Sudoku puzzle by interacting with a C++ program from JavaScript.</li>
+<li>To provide a UI for displaying, editing and solving a Sudoku puzzle.</li>
+</ol>
+<p>Another loose goal was to only change the original code where absolutely necessary, since it&rsquo;s interesting to see how
+much of the original codebase really needs to change to get it working in a browser.</p>
+<h2 id=interacting-with-c-from-javascript>Interacting with C++ from JavaScript</h2>
+<p>At a high level, the solver is made of two parts: a representation of the puzzle, and a function that returns the solved
+representation for a given puzzle if it exists. It&rsquo;s these components of the original C++ that need exposing to the
+browser.</p>
+<p>In the previous post I showed how it&rsquo;s possible to expose C++ to JavaScript using Emscripten. I used a JavaScript method
+called <code>cwrap()</code> which allowed me to call a function defined in C++, but I can&rsquo;t use that here because the solver code
+is object oriented. The good news is that Emscripten provides a much more powerful tool for defining what to expose:
+<a href=https://emscripten.org/docs/porting/connecting_cpp_and_javascript/embind.html>Embind</a>.</p>
+<p>With Embind, I&rsquo;m able to expose classes, structs, functions, enums, constants, and pretty much anything else that can be
+defined in C++. In my use case, I need to expose two classes, <code>Grid</code> and <code>Solver</code>:</p>
+<div class="highlight-filename before">wasm-bindings.cc</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cpp data-lang=cpp><span style=color:#007020>#include</span> <span style=color:#007020>&lt;emscripten/bind.h&gt;</span><span style=color:#007020>
+</span><span style=color:#007020>#include</span> <span style=color:#007020>&#34;solver.h&#34;</span><span style=color:#007020>
+</span><span style=color:#007020></span>
+<span style=color:#007020;font-weight:700>using</span> sudoku<span style=color:#666>::</span>Grid;
+<span style=color:#007020;font-weight:700>using</span> sudoku<span style=color:#666>::</span>Solver;
+
+EMSCRIPTEN_BINDINGS(Grid) {
+  emscripten<span style=color:#666>::</span>class_<span style=color:#666>&lt;</span>Grid<span style=color:#666>&gt;</span>(<span style=color:#4070a0>&#34;Grid&#34;</span>)
+    .function(<span style=color:#4070a0>&#34;ToString&#34;</span>, <span style=color:#666>&amp;</span>Grid<span style=color:#666>::</span>ToString)
+    .class_function(<span style=color:#4070a0>&#34;FromString&#34;</span>, <span style=color:#666>&amp;</span>Grid<span style=color:#666>::</span>FromString);
+}
+
+EMSCRIPTEN_BINDINGS(Solver) {
+  emscripten<span style=color:#666>::</span>class_<span style=color:#666>&lt;</span>Solver<span style=color:#666>&gt;</span>(<span style=color:#4070a0>&#34;Solver&#34;</span>)
+    .class_function(<span style=color:#4070a0>&#34;Solve&#34;</span>, <span style=color:#666>&amp;</span>Solver<span style=color:#666>::</span>Solve);
+}
+</code></pre></div><p><strong>Note:</strong> I had to invoke the <code>emcc</code> compiler with <code>--bind</code> to access <code>bind.h</code>.</p>
+<p>This exposes the following methods:</p>
+<ul>
+<li><code>Grid::ToString()</code> – grids will be stored as strings of digits in JavaScript</li>
+<li><code>Grid::FromString()</code> – a static constructor method for creating a new <code>Grid</code></li>
+<li><code>Solver::Solve()</code> – this goes without saying!</li>
+</ul>
+<p>These are now callable in the browser via the Emscripten <code>Module</code> object, similar to what we saw in
+the previous post:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#007020;font-weight:700>const</span> grid <span style=color:#666>=</span> Module.Grid.FromString(<span style=color:#4070a0>&#39;... 81 digit string ...&#39;</span>);
+<span style=color:#007020;font-weight:700>const</span> solvedGrid <span style=color:#666>=</span> Module.Solver.Solve(grid);
+
+console.log(solvedGrid.ToString());
+</code></pre></div><p>This achieves the first goal of the project: to solve a Sudoku puzzle by interacting with a C++ program from JavaScript
+🎉</p>
+<h2 id=unsolvable-puzzles>Unsolvable Puzzles</h2>
+<p>The algorithm used by the solver isn&rsquo;t particularly clever. It&rsquo;s a brute force depth-first search, so as long as the
+given puzzle has a solution, the only thing standing in the way of finding it is time. But what happens when a solution
+doesn&rsquo;t exist? Perhaps controversially, the solver throws an exception&mldr;</p>
+<h3 id=exception-handling>Exception Handling</h3>
+<p>Whether this should be considered a runtime error is up for debate, but this demonstrates how exceptions thrown by C++
+can be caught and handled with JavaScript.</p>
+<div class="highlight-filename before">solver.cc</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c++ data-lang=c++><span style=color:#007020;font-weight:700>struct</span> <span style=color:#0e84b5;font-weight:700>Unsolvable</span> <span style=color:#666>:</span> <span style=color:#007020;font-weight:700>public</span> std<span style=color:#666>::</span>runtime_error {
+  Unsolvable() <span style=color:#666>:</span> std<span style=color:#666>::</span>runtime_error(<span style=color:#4070a0>&#34;Grid is not solvable&#34;</span>) {}
+};
+
+<span style=color:#007020;font-weight:700>throw</span> <span style=color:#06287e>Unsolvable</span>(); <span style=color:#60a0b0;font-style:italic>// Doh!
+</span></code></pre></div><p>Emscripten allows us to use JavaScript&rsquo;s built-in <code>try...catch</code>:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#007020;font-weight:700>try</span> {
+  <span style=color:#007020;font-weight:700>const</span> grid <span style=color:#666>=</span> Module.Grid.FromString(<span style=color:#4070a0>&#39;...&#39;</span>);
+  <span style=color:#007020;font-weight:700>const</span> solvedGrid <span style=color:#666>=</span> Module.Solver.Solve(grid);
+
+  console.log(solvedGrid.ToString());
+} <span style=color:#007020;font-weight:700>catch</span> (error) {
+  console.error(error);
+}
+</code></pre></div><p>This seems simple enough, but <code>error</code> is actually a number here, rather than the expected message or exception
+object. This happens because the exception is thrown from WASM using a pointer instead of a copy of the thrown object,
+so the number we&rsquo;re given represents the location in memory where we can find the exception.</p>
+<p>To make use of the pointer we need to expose another C++ function:</p>
+<div class="highlight-filename before">wasm-bindings.cc</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cpp data-lang=cpp>std<span style=color:#666>::</span>string getExceptionMessage(intptr_t ptr) {
+  <span style=color:#007020;font-weight:700>return</span> std<span style=color:#666>::</span>string(<span style=color:#007020;font-weight:700>reinterpret_cast</span><span style=color:#666>&lt;</span>std<span style=color:#666>::</span>exception <span style=color:#666>*&gt;</span>(ptr)<span style=color:#666>-&gt;</span>what());
+}
+
+EMSCRIPTEN_BINDINGS(getExceptionMessage) {
+  emscripten<span style=color:#666>::</span>function(<span style=color:#4070a0>&#34;getExceptionMessage&#34;</span>, <span style=color:#666>&amp;</span>getExceptionMessage);
+}
+</code></pre></div><p>The <code>getExceptionMessage()</code> function takes a number representing a pointer and treats it as a <code>std::exception</code> pointer
+instead, allowing us to call the <code>what()</code> method to retrieve the original message.</p>
+<p>We can now do something useful with <code>error</code>:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#007020;font-weight:700>try</span> {
+  ...
+} <span style=color:#007020;font-weight:700>catch</span> (error) {
+  console.error(Module.getExceptionMessage(error));
+}
+</code></pre></div><p><strong>Note:</strong> by default Emscripten compiles with exception catching disabled, so if the C++ program throws an exception
+that&rsquo;s not caught by the program itself, it terminates. Invoke the <code>emcc</code> compiler with the
+<code>NO_DISABLE_EXCEPTION_CATCHING</code> option to enable this behaviour.</p>
+<h2 id=building-a-user-interface>Building a User Interface</h2>
+<p>I&rsquo;ll start by saying that I have about as much creativity as a pile of damp napkins. That being said, it shouldn&rsquo;t
+be too hard to cobble together something that roughly resembles Sudoku.</p>
+<p>The end result must provide the following capabilities:</p>
+<ul>
+<li>display an editable Sudoku grid</li>
+<li>choose from a predefined list of puzzles</li>
+<li>solve the given puzzle and display the solution.</li>
+</ul>
+<p>This roughly maps to 81 <code>&lt;input></code> elements, a <code>&lt;select></code> and a <code>&lt;button></code>.</p>
+<h3 id=enter-react>Enter React</h3>
+<p>I chose React because it allows me to focus on Sudoku, rather than on wrangling the browser DOM into shape. With its
+declarative nature I only have to worry about the internal state of the app and how it changes in response to user
+interaction. React takes care of the rest and eliminates a whole class of developer headaches.</p>
+<p>Fortunately, the app is extremely simple. I only need to keep track of the digits in the grid and any error returned by
+the solver. As mentioned above, the grid will be stored in JavaScript as a string of length 81; one character
+per grid cell. Empty grid cells will be represented as zeroes to make life easy, since then all positions in the string
+are digits and can be treated the same.</p>
+<p>The predefined puzzles are as follows:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#007020;font-weight:700>const</span> puzzles <span style=color:#666>=</span> {
+  easy<span style=color:#666>:</span> <span style=color:#4070a0>&#39;050000030302000704080010050000703000006050300000802000020090040609000801010000060&#39;</span>,
+  medium<span style=color:#666>:</span> <span style=color:#4070a0>&#39;300400600700090003800300000030521000000000090020030040048002000006000100000007400&#39;</span>,
+  hard<span style=color:#666>:</span> <span style=color:#4070a0>&#39;800000000003600000070090200050007000000045700000100030001000068008500010090000400&#39;</span>,
+};
+</code></pre></div><p>We&rsquo;ll use the <em>&ldquo;easy&rdquo;</em> puzzle and no error as the initial state:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-jsx data-lang=jsx><span style=color:#007020;font-weight:700>const</span> [cells, setCells] <span style=color:#666>=</span> React.useState(puzzles.easy);
+<span style=color:#007020;font-weight:700>const</span> [error, setError] <span style=color:#666>=</span> React.useState(<span style=color:#007020;font-weight:700>null</span>);
+</code></pre></div><p><small><em>(Fun fact: according
+<a href=https://metro.co.uk/2012/06/28/worlds-hardest-sudoku-everest-created-by-mathematician-arto-inkala-483588/>to</a>
+<a href=https://www.quora.com/What-is-the-toughest-sudoku-in-world>a</a>
+<a href=https://abcnews.go.com/blogs/headlines/2012/06/can-you-solve-the-hardest-ever-sudoku>few</a>
+<a href=https://www.telegraph.co.uk/news/science/science-news/9359579/Worlds-hardest-sudoku-can-you-crack-it.html>sources</a>,
+the &ldquo;hard&rdquo; puzzle shown here is generally regarded as the hardest puzzle ever created, designed in 2012 by Finnish
+mathematician Arto Inkala)</em></small></p>
+<h3 id=component-architecture>Component Architecture</h3>
+<p>Now we know what the state looks like, we need a place to put it. In React speak, the app is made of three components:
+<code>Solver</code>, <code>Controls</code> and <code>Grid</code>, arranged as follows:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-jsx data-lang=jsx>&lt;<span style=color:#062873;font-weight:700>Solver</span>&gt;
+  &lt;<span style=color:#062873;font-weight:700>Controls</span> /&gt;
+  &lt;<span style=color:#062873;font-weight:700>Grid</span> /&gt;
+&lt;/<span style=color:#062873;font-weight:700>Solver</span>&gt;
+</code></pre></div><p>It would be reasonable to assume the state should live in <code>Grid</code> since that&rsquo;s where the digits belong visually, but this
+could make things tricky later. In general, state should be <a href=https://reactjs.org/docs/lifting-state-up.html>&ldquo;lifted&rdquo;</a>
+to the closest common ancestor of all the components that need it.</p>
+<p>While it&rsquo;s clear that <code>Grid</code> needs the state (to display the puzzle!), it&rsquo;s not so obvious with <code>Controls</code>. Remember
+that <code>&lt;select></code> element? This changes the puzzle displayed on the grid, so the component needs to be aware of the state
+if only to update it. The state therefore lives in <code>Solver</code> and can be fed down to the child components as necessary.</p>
+<p>I want to avoid passing the <code>setCells()</code> function directly to a child component because this unnecessarily widens the
+scope for mutating the state; something feels wrong with that. The ideal solution would be for the parent component to
+pass down a set of behaviours it deems to be safe for the child component to use. This feels better because we haven&rsquo;t
+violated encapsulation of the parent component&rsquo;s internals.</p>
+<p>The most natural way to achieve this is for <code>Solver</code> to define a closure for each behaviour:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-jsx data-lang=jsx><span style=color:#007020;font-weight:700>const</span> Solver <span style=color:#666>=</span> () =&gt; {
+  <span style=color:#007020;font-weight:700>const</span> [cells, setCells] <span style=color:#666>=</span> React.useState(puzzles.easy);
+  <span style=color:#007020;font-weight:700>const</span> [error, setError] <span style=color:#666>=</span> React.useState(<span style=color:#007020;font-weight:700>null</span>);
+
+  <span style=color:#007020;font-weight:700>const</span> setPuzzle <span style=color:#666>=</span> (puzzle) =&gt; {
+    setCells(puzzles[puzzle]);
+  };
+
+  <span style=color:#007020;font-weight:700>const</span> solvePuzzle <span style=color:#666>=</span> () =&gt; {
+    <span style=color:#007020;font-weight:700>try</span> {
+      <span style=color:#007020;font-weight:700>const</span> grid <span style=color:#666>=</span> Module.Grid.FromString(cells);
+      <span style=color:#007020;font-weight:700>const</span> solvedGrid <span style=color:#666>=</span> Module.Solver.Solve(grid);
+
+      setCells(solvedGrid.ToString());
+    } <span style=color:#007020;font-weight:700>catch</span> (error) {
+      setError(Module.getExceptionMessage(error));
+    }
+  };
+
+  <span style=color:#007020;font-weight:700>const</span> setCell <span style=color:#666>=</span> (idx, digit) =&gt; {
+    <span style=color:#007020;font-weight:700>const</span> newCells <span style=color:#666>=</span> [...cells];
+    newCells[idx] <span style=color:#666>=</span> digit <span style=color:#666>||</span> <span style=color:#4070a0>&#39;0&#39;</span>;
+    setCells(newCells.join(<span style=color:#4070a0>&#39;&#39;</span>));
+  };
+
+  <span style=color:#007020;font-weight:700>return</span> (
+    &lt;&gt;
+      &lt;<span style=color:#062873;font-weight:700>Controls</span> <span style=color:#4070a0>setPuzzle</span><span style=color:#666>=</span>{setPuzzle} <span style=color:#4070a0>solvePuzzle</span><span style=color:#666>=</span>{solvePuzzle} /&gt;
+      &lt;<span style=color:#062873;font-weight:700>Grid</span> <span style=color:#4070a0>cells</span><span style=color:#666>=</span>{cells} <span style=color:#4070a0>setCell</span><span style=color:#666>=</span>{setCell} /&gt;
+      {error <span style=color:#666>&amp;&amp;</span> &lt;<span style=color:#062873;font-weight:700>p</span>&gt;{error}&lt;/<span style=color:#062873;font-weight:700>p</span>&gt;}
+    &lt;/&gt;
+  );
+};
+</code></pre></div><p>The <code>Controls</code> and <code>Grid</code> components bring these behaviours to life:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-jsx data-lang=jsx><span style=color:#007020;font-weight:700>const</span> Controls <span style=color:#666>=</span> ({ setPuzzle, solvePuzzle }) =&gt; (
+  &lt;&gt;
+    &lt;<span style=color:#062873;font-weight:700>select</span> <span style=color:#4070a0>onChange</span><span style=color:#666>=</span>{(e) =&gt; setPuzzle(e.target.value)}&gt;
+      &lt;<span style=color:#062873;font-weight:700>option</span> <span style=color:#4070a0>value</span><span style=color:#666>=</span><span style=color:#4070a0>&#34;easy&#34;</span>&gt;Easy&lt;/<span style=color:#062873;font-weight:700>option</span>&gt;
+      &lt;<span style=color:#062873;font-weight:700>option</span> <span style=color:#4070a0>value</span><span style=color:#666>=</span><span style=color:#4070a0>&#34;medium&#34;</span>&gt;Medium&lt;/<span style=color:#062873;font-weight:700>option</span>&gt;
+      &lt;<span style=color:#062873;font-weight:700>option</span> <span style=color:#4070a0>value</span><span style=color:#666>=</span><span style=color:#4070a0>&#34;hard&#34;</span>&gt;Hard&lt;/<span style=color:#062873;font-weight:700>option</span>&gt;
+    &lt;/<span style=color:#062873;font-weight:700>select</span>&gt;
+    &lt;<span style=color:#062873;font-weight:700>button</span> <span style=color:#4070a0>onClick</span><span style=color:#666>=</span>{solvePuzzle}&gt;Solve&lt;/<span style=color:#062873;font-weight:700>button</span>&gt;
+  &lt;/&gt;
+);
+
+<span style=color:#007020;font-weight:700>const</span> Grid <span style=color:#666>=</span> ({ cells, setCell }) =&gt; (
+  [...cells].map((cell, idx) =&gt; (
+    &lt;<span style=color:#062873;font-weight:700>input</span>
+      <span style=color:#4070a0>type</span><span style=color:#666>=</span><span style=color:#4070a0>&#34;text&#34;</span>
+      <span style=color:#4070a0>value</span><span style=color:#666>=</span>{<span style=color:#007020>Number</span>(cell) <span style=color:#666>||</span> <span style=color:#4070a0>&#39;&#39;</span>}
+      <span style=color:#4070a0>onChange</span><span style=color:#666>=</span>{(e) =&gt; setCell(idx, e.target.value)}
+      <span style=color:#4070a0>className</span><span style=color:#666>=</span><span style=color:#4070a0>&#34;Grid-square&#34;</span>
+    /&gt;
+  ))
+);
+</code></pre></div><p>The second goal of the project is complete: to provide a UI for displaying, editing and solving a Sudoku puzzle
+🎉</p>
+<h2 id=wrapping-up>Wrapping Up</h2>
+<p>I was surprised at how straightforward it was to transform this old C++ program into a web app. I mentioned that a loose
+goal was to change the original code as little as possible, and I think I&rsquo;ve gotten away quite lightly with this. Aside
+from the <code>wasm-bindings.cc</code> file (which is kind of a necessity) I only had to add a couple of methods to the <code>Grid</code>
+class for handling conversion to and from a string.</p>
+<p>I&rsquo;m hoping to find more time in the future to extend the project by visualising the steps the solver took to reach the
+solution, and perhaps by adding a feature for generating puzzles (although that feels like a different problem
+altogether).</p>
+<p>It&rsquo;s been a fun side project to work on, mainly because it&rsquo;s fun playing with technologies I wouldn&rsquo;t otherwise get to
+use (particularly WASM), but also because I got to learn a tonne about React along the way.</p>
+<iframe id=solver src=https://tomcant.dev/sudoku-solver/?embed width=100% height=570px></iframe>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
