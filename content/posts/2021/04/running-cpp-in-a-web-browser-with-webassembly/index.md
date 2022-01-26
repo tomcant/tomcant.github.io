@@ -1,5 +1,5 @@
 ---
-title: Running C++ in a Web Browser with WebAssembly
+title: Running C++ in a Web Browser with WASM
 description: A very basic intro to compiling and running C++ for the web.
 date: 2021-04-25
 draft: false
@@ -63,7 +63,7 @@ worked, you should see _Hello, WebAssembly_ when the page loads.
 
 <div class="note note-info">
   <div class="note-title">
-    Tip: run the examples with Docker/Nginx
+    Run the examples with Docker/Nginx
   </div>
   <div class="note-body">
     <p>
