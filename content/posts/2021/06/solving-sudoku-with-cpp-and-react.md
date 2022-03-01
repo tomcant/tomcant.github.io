@@ -11,12 +11,12 @@ share some recent progress in this post.
 
 <!--more-->
 
-Check out [the GitHub repo](https://github.com/tomcant/sudoku-solver) if you're interested in seeing the full code. I've also
-included a demo of the transformed app below.
+Check out [the GitHub repo](https://github.com/tomcant/sudoku-solver) if you're interested in seeing the full code. I've
+also included a demo of the transformed app below.
 
-The original project was a command-line program which read a puzzle from `stdin` and printed the solution or an error
-message to `stdout`. Such a simple flow translates to the web quite easily; the puzzle can come from user input and can
-be output with basic HTML elements.
+The original project was a command-line program which read a puzzle from `stdin` and printed the solution  to `stdout`.
+Such a simple flow translates to the web quite easily; the puzzle can come from user input and can be output with basic
+HTML elements.
 
 ## Goals
 
