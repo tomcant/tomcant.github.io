@@ -31,11 +31,11 @@
 <p>In a <a href=/blog/posts/2021/04/running-cpp-in-a-web-browser-with-webassembly/>previous post</a> I talked about rebuilding some
 old C++ projects with WebAssembly and running them in a web browser. One such project was a Sudoku solver, and I want to
 share some recent progress in this post.</p>
-<p>Check out <a href=https://github.com/tomcant/sudoku-solver>the GitHub repo</a> if you&rsquo;re interested in seeing the full code. I&rsquo;ve also
-included a demo of the transformed app below.</p>
-<p>The original project was a command-line program which read a puzzle from <code>stdin</code> and printed the solution or an error
-message to <code>stdout</code>. Such a simple flow translates to the web quite easily; the puzzle can come from user input and can
-be output with basic HTML elements.</p>
+<p>Check out <a href=https://github.com/tomcant/sudoku-solver>the GitHub repo</a> if you&rsquo;re interested in seeing the full code. I&rsquo;ve
+also included a demo of the transformed app below.</p>
+<p>The original project was a command-line program which read a puzzle from <code>stdin</code> and printed the solution to <code>stdout</code>.
+Such a simple flow translates to the web quite easily; the puzzle can come from user input and can be output with basic
+HTML elements.</p>
 <h2 id=goals>Goals</h2>
 <ol>
 <li>To solve a Sudoku puzzle by interacting with a C++ program from JavaScript.</li>
