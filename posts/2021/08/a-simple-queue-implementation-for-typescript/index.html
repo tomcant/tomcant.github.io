@@ -1,0 +1,83 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>A Simple Queue Implementation for TypeScript &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/blog/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/blog/css/poole.css>
+<link type=text/css rel=stylesheet href=/blog/css/syntax.css>
+<link type=text/css rel=stylesheet href=/blog/css/hyde.css>
+<link type=text/css rel=stylesheet href=/blog/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/blog/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/blog/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/blog/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>A Simple Queue Implementation for TypeScript</h1>
+<time datetime=2021-08-05T00:00:00Z class=post-date>Thu, Aug 5, 2021</time>
+<p>I&rsquo;ve recently spent more time than I&rsquo;d like to admit solving programming puzzles, and the queue data structure seems to
+be a reoccurring theme. JavaScript doesn&rsquo;t have a built-in implementation, so I find myself copy/pasting the same few
+lines of code everywhere. I&rsquo;ve decided it&rsquo;s time to put that snippet somewhere more accessible.</p>
+<p>I could just use the built-in array type directly with its <code>push()</code> and <code>shift()</code> methods, but that would be boring! I
+prefer to make the queue a first-class citizen in its own right. The idea is to hide the specific implementation details
+of &ldquo;push&rdquo; and &ldquo;shift&rdquo; behind more queue-like terminology: &ldquo;enqueue&rdquo; and &ldquo;dequeue&rdquo;. This makes the resultant code easier
+to read because the intentions are clearer.</p>
+<div class="highlight-filename before">Queue.ts</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>export</span> <span style=color:#007020;font-weight:700>default</span> <span style=color:#007020;font-weight:700>class</span> Queue&lt;<span style=color:#062873;font-weight:700>T</span>&gt; {
+  <span style=color:#007020;font-weight:700>constructor</span>(<span style=color:#007020;font-weight:700>private</span> items: <span style=color:#902000>T</span>[] <span style=color:#666>=</span> []) {}
+
+  <span style=color:#007020;font-weight:700>public</span> enqueue(...items: <span style=color:#902000>T</span>[])<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>void</span> {
+    <span style=color:#007020;font-weight:700>this</span>.items.push(...items);
+  }
+
+  <span style=color:#007020;font-weight:700>public</span> dequeue()<span style=color:#666>:</span> T {
+    <span style=color:#007020;font-weight:700>if</span> (<span style=color:#007020;font-weight:700>this</span>.isEmpty()) {
+      <span style=color:#007020;font-weight:700>throw</span> <span style=color:#007020;font-weight:700>new</span> <span style=color:#007020>Error</span>(<span style=color:#4070a0>&#34;No items to dequeue!&#34;</span>);
+    }
+
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.items.shift() <span style=color:#007020;font-weight:700>as</span> T;
+  }
+
+  <span style=color:#007020;font-weight:700>public</span> isEmpty()<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>boolean</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.size <span style=color:#666>===</span> <span style=color:#40a070>0</span>;
+  }
+
+  <span style=color:#007020;font-weight:700>public</span> <span style=color:#007020;font-weight:700>get</span> size()<span style=color:#666>:</span> <span style=color:#902000>number</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.items.length;
+  }
+}
+</code></pre></div><p>Example usage:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>import</span> Queue <span style=color:#007020;font-weight:700>from</span> <span style=color:#4070a0>&#34;./Queue&#34;</span>;
+
+<span style=color:#007020;font-weight:700>const</span> q <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Queue&lt;<span style=color:#062873;font-weight:700>string</span>&gt;();
+
+console.assert(q.isEmpty());
+
+q.enqueue(<span style=color:#4070a0>&#34;First item&#34;</span>, <span style=color:#4070a0>&#34;Second item&#34;</span>);
+q.enqueue(<span style=color:#4070a0>&#34;Another item&#34;</span>);
+
+console.assert(q.size <span style=color:#666>===</span> <span style=color:#40a070>3</span>);
+
+console.log(q.dequeue()); <span style=color:#60a0b0;font-style:italic>// &#34;First item&#34;
+</span><span style=color:#60a0b0;font-style:italic></span>
+console.assert(q.size <span style=color:#666>===</span> <span style=color:#40a070>2</span>);
+</code></pre></div>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
