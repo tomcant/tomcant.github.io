@@ -1,0 +1,269 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Introduction to Pathfinding with Mazes and Breadth-first Search &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/blog/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/blog/css/poole.css>
+<link type=text/css rel=stylesheet href=/blog/css/syntax.css>
+<link type=text/css rel=stylesheet href=/blog/css/hyde.css>
+<link type=text/css rel=stylesheet href=/blog/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/blog/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/blog/favicon.png>
+<script async src=https://unpkg.com/mermaid@8.14.0/dist/mermaid.min.js></script>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/blog/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Introduction to Pathfinding with Mazes and Breadth-first Search</h1>
+<time datetime=2021-08-13T00:00:00Z class=post-date>Fri, Aug 13, 2021</time>
+<p>As with many programmers wanting to sharpen their problem-solving skills, I&rsquo;ve recently been tackling <a href=https://adventofcode.com>Advent of Code</a>,
+a digital Advent calendar in which each day presents an increasingly difficult puzzle to solve. Having completed the
+2016 calendar, which <a href=https://adventofcode.com/2016/day/11>involved</a> <a href=https://adventofcode.com/2016/day/13>several</a>
+<a href=https://adventofcode.com/2016/day/22>pathfinding</a> <a href=https://adventofcode.com/2016/day/24>problems</a>, I&rsquo;ve become
+obsessed with mazes and pathfinding algorithms.</p>
+<p>This post is an introduction to pathfinding with mazes and breadth-first search, the algorithm that forms the basis of
+pathfinding in general. I&rsquo;ll use TypeScript for the code, but all the ideas will be language agnostic.</p>
+<p>At a high level, pathfinding requires two things: a model of the search space (the maze in this case), and a way to
+search through the possible paths that can be taken. That&rsquo;s a pretty dramatic simplification, so let&rsquo;s break it down.</p>
+<h2 id=modelling-the-maze>Modelling the Maze</h2>
+<p>An obvious approach is to use a 2D array to model the maze as a grid. This feels quite natural, but it&rsquo;s not very space
+efficient. Imagine a 10x10 maze with no walls. That&rsquo;s 100 array items to define an empty maze! Another approach is to
+only store the size of the maze along with the (x, y) coordinates of the walls. An empty MxN maze is now just two
+numbers. Much better!</p>
+<p>One of the basic building blocks of this approach will be our model of an (x, y) coordinate. We could use a plain old
+JavaScript object like <code>{ x: 1, y: 1 }</code>, but since we&rsquo;ll be using this in lots of places I think it deserves to be
+treated like a first-class citizen. We&rsquo;ll write a class for this called <code>Vec2d</code> with a couple of methods that will come
+in handy later:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>class</span> Vec2d {
+  <span style=color:#007020;font-weight:700>constructor</span>(
+    <span style=color:#007020;font-weight:700>readonly</span> x: <span style=color:#902000>number</span>,
+    <span style=color:#007020;font-weight:700>readonly</span> y: <span style=color:#902000>number</span>
+  ) {}
+
+  <span style=color:#007020;font-weight:700>public</span> add(v: <span style=color:#902000>Vec2d</span>)<span style=color:#666>:</span> Vec2d {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#007020;font-weight:700>this</span>.x <span style=color:#666>+</span> v.x, <span style=color:#007020;font-weight:700>this</span>.y <span style=color:#666>+</span> v.y);
+  }
+
+  <span style=color:#007020;font-weight:700>public</span> equals(v: <span style=color:#902000>Vec2d</span>)<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>boolean</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.x <span style=color:#666>===</span> v.x <span style=color:#666>&amp;&amp;</span> <span style=color:#007020;font-weight:700>this</span>.y <span style=color:#666>===</span> v.y;
+  }
+}
+</code></pre></div><p>The maze itself is a class with properties for its width and height, and a <a href=https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set>Set</a>
+of <code>Vec2d</code> for the positions of the walls:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>class</span> Maze {
+  <span style=color:#007020;font-weight:700>private</span> walls: <span style=color:#902000>Set</span>&lt;<span style=color:#062873;font-weight:700>Vec2d</span>&gt;;
+
+  <span style=color:#007020;font-weight:700>public</span> <span style=color:#007020;font-weight:700>constructor</span>(
+    <span style=color:#007020;font-weight:700>readonly</span> width: <span style=color:#902000>number</span>,
+    <span style=color:#007020;font-weight:700>readonly</span> height: <span style=color:#902000>number</span>,
+    walls: <span style=color:#902000>Vec2d</span>[] <span style=color:#666>=</span> []
+  ) {
+    <span style=color:#007020;font-weight:700>this</span>.walls <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Set(walls);
+  }
+
+  <span style=color:#007020;font-weight:700>public</span> isWall(pos: <span style=color:#902000>Vec2d</span>)<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>boolean</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.walls.has(pos);
+  }
+}
+</code></pre></div><p>Before we can start searching through the maze, we need a way to find the available squares from any given position. A
+square is available if it&rsquo;s not a wall and is within the bounds of the maze. Using a list of <code>Vec2d</code> to represent the
+four directions of travel, we can write a utility function as follows:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>const</span> DIRECTIONS <span style=color:#666>=</span> [
+  <span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>1</span>, <span style=color:#40a070>0</span>),
+  <span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>0</span>, <span style=color:#40a070>1</span>),
+  <span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#666>-</span><span style=color:#40a070>1</span>, <span style=color:#40a070>0</span>),
+  <span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>0</span>, <span style=color:#666>-</span><span style=color:#40a070>1</span>),
+];
+
+<span style=color:#007020;font-weight:700>const</span> getNeighbours <span style=color:#666>=</span> (maze: <span style=color:#902000>Maze</span>, pos: <span style=color:#902000>Vec2d</span>)<span style=color:#666>:</span> Vec2d[] <span style=color:#666>=&gt;</span>
+  DIRECTIONS
+    .map((dir) <span style=color:#666>=&gt;</span> pos.add(dir))
+    .filter((pos) <span style=color:#666>=&gt;</span> <span style=color:#666>!</span>maze.isWall(pos))
+    .filter(
+      (pos) <span style=color:#666>=&gt;</span>
+        pos.x <span style=color:#666>&gt;=</span> <span style=color:#40a070>0</span> <span style=color:#666>&amp;&amp;</span> pos.x <span style=color:#666>&lt;</span> maze.width <span style=color:#666>&amp;&amp;</span>
+        pos.y <span style=color:#666>&gt;=</span> <span style=color:#40a070>0</span> <span style=color:#666>&amp;&amp;</span> pos.y <span style=color:#666>&lt;</span> maze.height
+    );
+</code></pre></div><p>Next up, we need a way to search through all the possible paths in the maze.</p>
+<h2 id=introducing-breadth-first-search>Introducing Breadth-first Search</h2>
+<p>The idea is simple: given a starting position, we explore the surrounding squares one step at a time in every direction.
+Eventually, either the target comes into range or we run out of places to look.</p>
+<p>Squares should be explored in order of their distance from the start. For each square, we make a note of its neighbours
+and only explore them once all previously encountered squares have been visited.</p>
+<p>We can achieve this idea with <a href=https://en.wikipedia.org/wiki/Queue_(abstract_data_type)>the Queue data structure</a>. We
+take squares to explore from the front of the queue and add squares for later to the back. The following flow diagram
+shows how the algorithm works:</p>
+<style>img{margin:0 auto 1rem}.mermaid{margin-bottom:1.5rem;text-align:center}</style>
+<div class=mermaid>
+%%{ init: { 'themeVariables': { 'fontSize': '0.8rem' }}}%%
+flowchart TD
+A(Add start\nsquare to queue) --> B{Is queue\nempty?}
+B --->|Yes| G(No path\nexists)
+B -->|No| C(Dequeue\nnext square)
+C --> D{Already\nvisited?}
+D -->|Yes| B
+D -->|No| E(Mark as visited)
+E --> F{Is this\nthe target?}
+F ==>|Yes| H(Found the\nshortest path!)
+F -->|No| I(Enqueue\nneighbouring\nsquares)
+I --> B
+classDef default stroke:#2f363d
+style H stroke-width:3px
+</div>
+<p>Using the queue implementation I posted in <a href=/blog/posts/2021/08/queueing-with-typescript/>Queueing with TypeScript</a>,
+translating this process to code could look something like this:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>function</span> breadthFirstSearch(
+  maze: <span style=color:#902000>Maze</span>,
+  startPos: <span style=color:#902000>Vec2d</span>,
+  targetPos: <span style=color:#902000>Vec2d</span>
+) {
+  <span style=color:#007020;font-weight:700>const</span> queue <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Queue&lt;<span style=color:#062873;font-weight:700>Vec2d</span>&gt;();
+  queue.enqueue(startPos);
+
+  <span style=color:#007020;font-weight:700>const</span> visited <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Set&lt;<span style=color:#062873;font-weight:700>Vec2d</span>&gt;();
+
+  <span style=color:#007020;font-weight:700>while</span> (<span style=color:#666>!</span>queue.isEmpty()) {
+    <span style=color:#007020;font-weight:700>const</span> currentPos <span style=color:#666>=</span> queue.dequeue();
+
+    <span style=color:#007020;font-weight:700>if</span> (visited.has(currentPos)) {
+      <span style=color:#007020;font-weight:700>continue</span>;
+    }
+
+    visited.add(currentPos);
+
+    <span style=color:#007020;font-weight:700>if</span> (currentPos.equals(targetPos)) {
+      <span style=color:#60a0b0;font-style:italic>// Found the shortest path!
+</span><span style=color:#60a0b0;font-style:italic></span>      <span style=color:#007020;font-weight:700>return</span>;
+    }
+
+    queue.enqueue(...getNeighbours(maze, currentPos));
+  }
+
+  <span style=color:#60a0b0;font-style:italic>// If we end up here then no path exists
+</span><span style=color:#60a0b0;font-style:italic></span>}
+</code></pre></div><h3 id=checkpoint>Checkpoint!</h3>
+<p>This covers the basics of breadth-first search. We have a model of the search space and a means of searching through it.
+If a path exists between the given start and target positions then our function will find it.</p>
+<p>A nice property of this algorithm is that when the target is found, we&rsquo;re guaranteed to have the shortest path. However,
+our current implementation isn&rsquo;t all that useful because we haven&rsquo;t actually produced the path anywhere. Ideally, our
+function would return the shortest path as a list of <code>Vec2d</code>, and this can be achieved without much more effort.</p>
+<h3 id=returning-the-shortest-path>Returning the Shortest Path</h3>
+<p>When the target is found, we can construct the shortest path by retracing our steps back to the start. The simplest way
+to do this is to add a reference to the previous square into each queue item. Instead of only queueing the positions of
+squares to explore, we&rsquo;ll create a new type to store a position and a reference, and queue that instead.</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>type</span> SearchNode <span style=color:#666>=</span> {
+  pos: <span style=color:#902000>Vec2d</span>;
+  prev?: <span style=color:#902000>SearchNode</span>;
+};
+</code></pre></div><p>We can think of this like a linked list in reverse, with the start position at one end and the target at the other. All
+we need to do is follow the references backwards from the target and make a note of each <code>Vec2d</code> along the way. A simple
+function to do this is as follows:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>function</span> rewindPath(node: <span style=color:#902000>SearchNode</span>)<span style=color:#666>:</span> Vec2d[]
+{
+  <span style=color:#007020;font-weight:700>const</span> path <span style=color:#666>=</span> [];
+
+  <span style=color:#007020;font-weight:700>while</span> (node.prev) {
+    path.unshift(node.pos);
+    node <span style=color:#666>=</span> node.prev;
+  }
+
+  <span style=color:#007020;font-weight:700>return</span> path;
+}
+</code></pre></div><p>We should call this function as soon as we find the target. Here&rsquo;s the original search function modified to return the
+shortest path:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>function</span> breadthFirstSearch(
+  maze: <span style=color:#902000>Maze</span>,
+  startPos: <span style=color:#902000>Vec2d</span>,
+  targetPos: <span style=color:#902000>Vec2d</span>
+)<span style=color:#666>:</span> Vec2d[] {
+  <span style=color:#007020;font-weight:700>const</span> queue <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Queue&lt;<span style=color:#062873;font-weight:700>SearchNode</span>&gt;();
+
+  <span style=color:#60a0b0;font-style:italic>// `prev` is initially undefined
+</span><span style=color:#60a0b0;font-style:italic></span>  queue.enqueue({ pos: <span style=color:#902000>startPos</span> });
+
+  <span style=color:#007020;font-weight:700>const</span> visited <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Set&lt;<span style=color:#062873;font-weight:700>Vec2d</span>&gt;();
+
+  <span style=color:#007020;font-weight:700>while</span> (<span style=color:#666>!</span>queue.isEmpty()) {
+    <span style=color:#007020;font-weight:700>const</span> node <span style=color:#666>=</span> queue.dequeue();
+
+    <span style=color:#007020;font-weight:700>if</span> (visited.has(node.pos)) {
+      <span style=color:#007020;font-weight:700>continue</span>;
+    }
+
+    visited.add(node.pos);
+
+    <span style=color:#007020;font-weight:700>if</span> (node.pos.equals(targetPos)) {
+      <span style=color:#60a0b0;font-style:italic>// Found the shortest path!
+</span><span style=display:block;width:100%;background-color:#d8d8d8><span style=color:#60a0b0;font-style:italic></span>      <span style=color:#007020;font-weight:700>return</span> rewindPath(node);
+</span>    }
+
+    <span style=color:#007020;font-weight:700>for</span> (<span style=color:#007020;font-weight:700>const</span> neighbour <span style=color:#007020;font-weight:700>of</span> getNeighbours(maze, node.pos)) {
+      queue.enqueue({ pos: <span style=color:#902000>neighbour</span>, prev: <span style=color:#902000>node</span> });
+    }
+  }
+
+  <span style=color:#007020;font-weight:700>throw</span> <span style=color:#007020;font-weight:700>new</span> <span style=color:#007020>Error</span>(<span style=color:#4070a0>&#34;No path exists!&#34;</span>);
+}</code></pre></div>
+<h2 id=putting-it-all-together>Putting It All Together</h2>
+<p>We now have the components required to find the shortest path between two points in a maze. The following simple
+function call returns the shortest path from top-left to bottom-right in an empty 10x10 grid:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts>breadthFirstSearch(
+  <span style=color:#007020;font-weight:700>new</span> Maze(<span style=color:#40a070>10</span>, <span style=color:#40a070>10</span>),
+  <span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>0</span>, <span style=color:#40a070>0</span>),
+  <span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>9</span>, <span style=color:#40a070>9</span>)
+);
+</code></pre></div><p>However, the empty grid doesn&rsquo;t make for a very interesting maze! This would be much better with a few walls as
+obstacles. As it turns out, it&rsquo;s not too much more work to draw a grid using basic HTML elements to reflect the state of
+a <code>Maze</code>, and from there it&rsquo;s straightforward enough to allow adding walls with mouse events.</p>
+<p>Below is a demo of <a href=https://tomcant.dev/pathfinder>a project I built</a> as a visual aid to exploring pathfinding.
+Generate a maze and/or click <em>Search</em> to see how the algorithm works. Draw walls and move the start/target to see how it
+behaves in different scenarios.</p>
+<iframe id=bfs-demo width=100% height=370px></iframe>
+<script>const cols=Math.floor(document.querySelector('.post').clientWidth/24);document.querySelector('#bfs-demo').src=`https://tomcant.dev/pathfinder/?embed&rows=13&cols=${cols}`</script>
+<h2 id=javascripts-immutability-model-a-help-or-a-hindrance>JavaScript&rsquo;s Immutability Model: a Help or a Hindrance?</h2>
+<p>Before finishing up, I need to address a glaring problem with the code in this post. In an ideal world, the <code>Vec2d</code>
+class would be a value object, where its identity is defined by the values of its (x, y) properties. However, JavaScript
+makes this difficult. For example&mldr;</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>1</span>, <span style=color:#40a070>1</span>) <span style=color:#666>===</span> <span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>1</span>, <span style=color:#40a070>1</span>); <span style=color:#60a0b0;font-style:italic>// False!
+</span></code></pre></div><p>It&rsquo;s hard to think of a context in which this condition should fail, but in JavaScript, it will never pass. The reason
+is that JavaScript compares objects by reference rather than by value, and this is a pretty big problem for our
+pathfinding code.</p>
+<p>We use the built-in <code>Set</code> class to keep track of squares we&rsquo;ve visited, so we can make sure we don&rsquo;t try to visit the
+same square twice. For example&mldr;</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>const</span> visited <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Set&lt;<span style=color:#062873;font-weight:700>Vec2d</span>&gt;();
+visited.add(<span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>1</span>, <span style=color:#40a070>1</span>));
+</code></pre></div><p>The algorithm now knows it has already visited <code>(1, 1)</code>. Or so you would think! In fact, the following line produces an
+unexpected result:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts>visited.has(<span style=color:#007020;font-weight:700>new</span> Vec2d(<span style=color:#40a070>1</span>, <span style=color:#40a070>1</span>)); <span style=color:#60a0b0;font-style:italic>// False!
+</span></code></pre></div><p>Although <code>Vec2d</code> has an <code>equals()</code> method for checking equality by value, there&rsquo;s no way of telling JavaScript to use it
+when making comparisons.</p>
+<p>There&rsquo;s some promising discussion in the JavaScript community around solving this. The <a href=https://github.com/tc39/proposal-record-tuple>Records & Tuples Proposal</a>
+aims to introduce immutable data structures that support object comparison by value, but until then we&rsquo;ll have to handle
+this some other way.</p>
+<p>A possible workaround is to convert the <code>Vec2d</code> object to a <code>string</code> and store that instead, since comparison of scalar
+values behaves as expected. We could add a <code>toString()</code> method and call it before checking if a square has been visited,
+but this would bloat the code and detract from the real problem.</p>
+<p>A better approach is to use a <a href=https://eddmann.com/posts/implementing-a-compound-set-in-typescript/>Compound Set</a>,
+which works just like the built-in <code>Set</code>, except that entries are automatically converted to deterministic strings, and
+can therefore be compared by value. This makes the <code>visited.has()</code> check above work as expected and keeps our code clean
+by hiding the problem behind a clever abstraction.</p>
+<p>Happy pathfinding!</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
