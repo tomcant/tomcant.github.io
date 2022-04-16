@@ -1,6 +1,6 @@
 ---
 title: "Introduction to Pathfinding with Mazes and Breadth-first Search"
-date: 2021-08-13
+date: 2021-09-13
 draft: false
 mermaid: true
 ---
@@ -274,7 +274,7 @@ behaves in different scenarios.
   document.querySelector('#bfs-demo').src = `https://tomcant.dev/pathfinder/?embed&rows=13&cols=${cols}`;
 </script>
 
-## JavaScript's Immutability Model: a Help or a Hindrance?
+## JavaScript's Mutability Model: a Help or a Hindrance?
 
 Before finishing up, I need to address a glaring problem with the code in this post. In an ideal world, the `Vec2d`
 class would be a value object, where its identity is defined by the values of its (x, y) properties. However, JavaScript
