@@ -1,4 +1,4 @@
-baseURL: "https://tomcant.dev/blog/"
+baseURL: "https://tomcant.dev/"
 languageCode: "en"
 title: "Tom Cant"
 theme: "hyde"

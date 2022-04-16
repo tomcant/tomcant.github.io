@@ -4,8 +4,9 @@ date: 2022-04-16
 draft: false
 ---
 
-In a previous post I wrote about how JavaScript's lack of support for value objects caused a problem when using the built-in
-`Set` class, and how it could be solved by using the idea of a [Compound Set](https://eddmann.com/posts/implementing-a-compound-set-in-typescript/)
+In [a previous post](/posts/2021/09/introduction-to-pathfinding-with-mazes-and-breadth-first-search/) I wrote about how
+JavaScript's lack of support for value objects caused a problem when using the built-in `Set` class, and how it could be
+solved by using the idea of a [Compound Set](https://eddmann.com/posts/implementing-a-compound-set-in-typescript/)
 instead. In this post I'm going to describe a similar solution I've been using for the built-in `Map` class.
 
 <!--more-->

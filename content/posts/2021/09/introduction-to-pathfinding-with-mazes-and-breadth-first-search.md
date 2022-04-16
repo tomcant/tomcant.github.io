@@ -133,7 +133,7 @@ flowchart TD
   style H stroke-width:3px
 {{</mermaid>}}
 
-Using the queue implementation I posted in [Queueing with TypeScript](/blog/posts/2021/08/queueing-with-typescript/),
+Using the queue implementation I posted in [Queueing with TypeScript](/posts/2021/08/queueing-with-typescript/),
 translating this process to code could look something like this:
 
 ```ts

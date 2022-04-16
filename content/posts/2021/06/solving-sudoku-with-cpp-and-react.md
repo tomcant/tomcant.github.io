@@ -5,7 +5,7 @@ date: 2021-06-30
 draft: false
 ---
 
-In a [previous post](/blog/posts/2021/04/running-cpp-in-a-web-browser-with-webassembly/) I talked about rebuilding some
+In a [previous post](/posts/2021/04/running-cpp-in-a-web-browser-with-webassembly/) I talked about rebuilding some
 old C++ projects with WebAssembly and running them in a web browser. One such project was a Sudoku solver, and I want to
 share some recent progress in this post.
 
