@@ -28,7 +28,7 @@
 <main class="content container">
 <div class=post>
 <h1>Introduction to Pathfinding with Mazes and Breadth-first Search</h1>
-<time datetime=2021-08-13T00:00:00Z class=post-date>Fri, Aug 13, 2021</time>
+<time datetime=2021-09-13T00:00:00Z class=post-date>Mon, Sep 13, 2021</time>
 <p>As with many programmers wanting to sharpen their problem-solving skills, I&rsquo;ve recently been tackling <a href=https://adventofcode.com>Advent of Code</a>,
 a digital Advent calendar in which each day presents an increasingly difficult puzzle to solve. Having completed the
 2016 calendar, which <a href=https://adventofcode.com/2016/day/11>involved</a> <a href=https://adventofcode.com/2016/day/13>several</a>
@@ -233,7 +233,7 @@ Generate a maze and/or click <em>Search</em> to see how the algorithm works. Dra
 behaves in different scenarios.</p>
 <iframe id=bfs-demo width=100% height=370px></iframe>
 <script>const cols=Math.floor(document.querySelector('.post').clientWidth/24);document.querySelector('#bfs-demo').src=`https://tomcant.dev/pathfinder/?embed&rows=13&cols=${cols}`</script>
-<h2 id=javascripts-immutability-model-a-help-or-a-hindrance>JavaScript&rsquo;s Immutability Model: a Help or a Hindrance?</h2>
+<h2 id=javascripts-mutability-model-a-help-or-a-hindrance>JavaScript&rsquo;s Mutability Model: a Help or a Hindrance?</h2>
 <p>Before finishing up, I need to address a glaring problem with the code in this post. In an ideal world, the <code>Vec2d</code>
 class would be a value object, where its identity is defined by the values of its (x, y) properties. However, JavaScript
 makes this difficult. For example&mldr;</p>

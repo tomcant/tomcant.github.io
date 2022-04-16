@@ -1,0 +1,157 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Value Objects as Map Keys in TypeScript &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/blog/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/blog/css/poole.css>
+<link type=text/css rel=stylesheet href=/blog/css/syntax.css>
+<link type=text/css rel=stylesheet href=/blog/css/hyde.css>
+<link type=text/css rel=stylesheet href=/blog/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/blog/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/blog/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/blog/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Value Objects as Map Keys in TypeScript</h1>
+<time datetime=2022-04-16T00:00:00Z class=post-date>Sat, Apr 16, 2022</time>
+<p>In a previous post I wrote about how JavaScript&rsquo;s lack of support for value objects caused a problem when using the built-in
+<code>Set</code> class, and how it could be solved by using the idea of a <a href=https://eddmann.com/posts/implementing-a-compound-set-in-typescript/>Compound Set</a>
+instead. In this post I&rsquo;m going to describe a similar solution I&rsquo;ve been using for the built-in <code>Map</code> class.</p>
+<h2 id=whats-the-problem>What&rsquo;s the Problem?</h2>
+<p>At the time of writing, JavaScript doesn&rsquo;t support immutability out of the box. Without it, we&rsquo;re unable to assert the
+equality of objects from their value alone (using native features, at least).</p>
+<p>Consider the following example in TypeScript:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>type</span> Point <span style=color:#666>=</span> {
+  x: <span style=color:#902000>number</span>;
+  y: <span style=color:#902000>number</span>;
+};
+
+<span style=color:#007020;font-weight:700>const</span> points <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Map&lt;<span style=color:#062873;font-weight:700>Point</span><span>,</span> <span style=color:#4070a0>string</span>&gt;();
+
+points.<span style=color:#007020;font-weight:700>set</span>({ x: <span style=color:#902000>0</span>, y: <span style=color:#902000>0</span> }, <span style=color:#4070a0>&#34;The origin&#34;</span>);
+</code></pre></div><p>So far, so good, but unfortunately the following line produces an unexpected result:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts>points.<span style=color:#007020;font-weight:700>get</span>({ x: <span style=color:#902000>0</span>, y: <span style=color:#902000>0</span> }); <span style=color:#60a0b0;font-style:italic>// undefined
+</span></code></pre></div><p>This happens because JavaScript compares objects by reference, not by value, and the object passed to <code>set()</code> has a
+different reference in memory to the object passed to <code>get()</code>.</p>
+<p>Ideally, the <code>Point</code> type would describe a value object whose identity is defined by the values of its properties, but
+JavaScript doesn&rsquo;t provide this kind of equality for objects.</p>
+<h2 id=third-party-libraries>Third Party Libraries</h2>
+<p>There are several popular libraries that add support for immutability. Check out <a href=https://immutable-js.com>immutable-js</a>
+or <a href=https://immerjs.github.io/immer>immer</a>, for example. I would encourage the use of these in most applications
+because immutability generally leads to less error-prone code. However, I&rsquo;m not going to talk about these here because
+they&rsquo;re already well documented and written about elsewhere.</p>
+<p>I want to share a simple idea I&rsquo;ve been using as a drop-in replacement for <code>Map</code> in situations where I don&rsquo;t want to
+bloat my workspace with dependencies.</p>
+<h2 id=the-compound-map>The Compound Map</h2>
+<p>In a similar way to the Compound Set linked above, we can define our own Compound Map class as an alternative to the
+built-in <code>Map</code>. The class should implement the same interface so that it can be used as a straightforward replacement.</p>
+<p>The basic idea is to convert the map keys to deterministic strings and use these with the built-in <code>Map</code> instead, since
+comparison of scalar values behaves as expected.</p>
+<p>Here&rsquo;s the class in full (also in <a href=https://gist.github.com/tomcant/4a5b9dc2adddcb6d8bfb084c197c8e81>this GitHub Gist</a>):</p>
+<div class="highlight-filename before">CompoundMap.ts</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>export</span> <span style=color:#007020;font-weight:700>default</span> <span style=color:#007020;font-weight:700>class</span> CompoundMap&lt;<span style=color:#062873;font-weight:700>K</span><span>,</span> <span style=color:#4070a0>V</span>&gt; <span style=color:#007020;font-weight:700>implements</span> Map&lt;<span style=color:#062873;font-weight:700>K</span><span>,</span> <span style=color:#4070a0>V</span>&gt; {
+  <span style=color:#007020;font-weight:700>private</span> <span style=color:#007020;font-weight:700>readonly</span> items: <span style=color:#902000>Map</span>&lt;<span style=color:#062873;font-weight:700>string</span><span>,</span> { <span style=color:#4070a0>key</span><span>:</span> <span style=color:#4070a0>K</span><span>;</span> <span style=color:#4070a0>value</span><span>:</span> <span style=color:#4070a0>V</span> }&gt;;
+
+  <span style=color:#007020;font-weight:700>constructor</span>(entries<span style=color:#666>:</span> [K, V][] <span style=color:#666>=</span> []) {
+    <span style=color:#007020;font-weight:700>this</span>.items <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> Map(
+      entries.map(([key, value]) <span style=color:#666>=&gt;</span> [<span style=color:#007020;font-weight:700>this</span>.toKey(key), { key, value }])
+    );
+  }
+
+  clear()<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>void</span> {
+    <span style=color:#007020;font-weight:700>this</span>.items.clear();
+  }
+
+  <span style=color:#007020;font-weight:700>delete</span>(key: <span style=color:#902000>K</span>)<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>boolean</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.items.<span style=color:#007020;font-weight:700>delete</span>(<span style=color:#007020;font-weight:700>this</span>.toKey(key));
+  }
+
+  <span style=color:#007020;font-weight:700>get</span>(key: <span style=color:#902000>K</span>)<span style=color:#666>:</span> V <span style=color:#666>|</span> <span style=color:#007020;font-weight:700>undefined</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.items.<span style=color:#007020;font-weight:700>get</span>(<span style=color:#007020;font-weight:700>this</span>.toKey(key))<span style=color:#666>?</span>.value;
+  }
+
+  has(key: <span style=color:#902000>K</span>)<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>boolean</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.items.has(<span style=color:#007020;font-weight:700>this</span>.toKey(key));
+  }
+
+  <span style=color:#007020;font-weight:700>set</span>(key: <span style=color:#902000>K</span>, value: <span style=color:#902000>V</span>)<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>this</span> {
+    <span style=color:#007020;font-weight:700>this</span>.items.<span style=color:#007020;font-weight:700>set</span>(<span style=color:#007020;font-weight:700>this</span>.toKey(key), { key, value });
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>;
+  }
+
+  <span style=color:#666>*</span>[Symbol.iterator]()<span style=color:#666>:</span> IterableIterator<span style=color:#666>&lt;</span>[K, V]<span style=color:#666>&gt;</span> {
+    <span style=color:#007020;font-weight:700>for</span> (<span style=color:#007020;font-weight:700>const</span> [, { key, value }] <span style=color:#007020;font-weight:700>of</span> <span style=color:#007020;font-weight:700>this</span>.items) {
+      <span style=color:#007020;font-weight:700>yield</span> [key, value];
+    }
+  }
+
+  <span style=color:#666>*</span>entries()<span style=color:#666>:</span> IterableIterator<span style=color:#666>&lt;</span>[K, V]<span style=color:#666>&gt;</span> {
+    <span style=color:#007020;font-weight:700>yield</span><span style=color:#666>*</span> <span style=color:#007020;font-weight:700>this</span>[Symbol.iterator]();
+  }
+
+  <span style=color:#666>*</span>keys()<span style=color:#666>:</span> IterableIterator&lt;<span style=color:#062873;font-weight:700>K</span>&gt; {
+    <span style=color:#007020;font-weight:700>for</span> (<span style=color:#007020;font-weight:700>const</span> [, { key }] <span style=color:#007020;font-weight:700>of</span> <span style=color:#007020;font-weight:700>this</span>.items) {
+      <span style=color:#007020;font-weight:700>yield</span> key;
+    }
+  }
+
+  <span style=color:#666>*</span>values()<span style=color:#666>:</span> IterableIterator&lt;<span style=color:#062873;font-weight:700>V</span>&gt; {
+    <span style=color:#007020;font-weight:700>for</span> (<span style=color:#007020;font-weight:700>const</span> [, { value }] <span style=color:#007020;font-weight:700>of</span> <span style=color:#007020;font-weight:700>this</span>.items) {
+      <span style=color:#007020;font-weight:700>yield</span> value;
+    }
+  }
+
+  forEach(callbackfn<span style=color:#666>:</span> (value: <span style=color:#902000>V</span>, key: <span style=color:#902000>K</span>, map: <span style=color:#902000>Map</span>&lt;<span style=color:#062873;font-weight:700>K</span><span>,</span> <span style=color:#4070a0>V</span>&gt;) <span style=color:#666>=&gt;</span> <span style=color:#007020;font-weight:700>void</span>, thisArg?: <span style=color:#902000>any</span>)<span style=color:#666>:</span> <span style=color:#007020;font-weight:700>void</span> {
+    <span style=color:#007020;font-weight:700>for</span> (<span style=color:#007020;font-weight:700>const</span> [, { key, value }] <span style=color:#007020;font-weight:700>of</span> <span style=color:#007020;font-weight:700>this</span>.items) {
+      callbackfn.call(thisArg, value, key, <span style=color:#007020;font-weight:700>this</span>);
+    }
+  }
+
+  <span style=color:#007020;font-weight:700>get</span> size()<span style=color:#666>:</span> <span style=color:#902000>number</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.items.size;
+  }
+
+  <span style=color:#007020;font-weight:700>get</span> [Symbol.toStringTag]()<span style=color:#666>:</span> <span style=color:#902000>string</span> {
+    <span style=color:#007020;font-weight:700>return</span> <span style=color:#007020;font-weight:700>this</span>.<span style=color:#007020;font-weight:700>constructor</span>.name;
+  }
+
+  <span style=color:#007020;font-weight:700>private</span> toKey(key: <span style=color:#902000>K</span>)<span style=color:#666>:</span> <span style=color:#902000>string</span> {
+    <span style=color:#007020;font-weight:700>return</span> JSON.stringify(key);
+  }
+}
+</code></pre></div><p>Reworking the example above, we can now make sense of the <code>points.get()</code> call:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts><span style=color:#007020;font-weight:700>import</span> CompoundMap <span style=color:#007020;font-weight:700>from</span> <span style=color:#4070a0>&#34;./CompoundMap&#34;</span>;
+
+<span style=color:#007020;font-weight:700>const</span> points <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>new</span> CompoundMap&lt;<span style=color:#062873;font-weight:700>Point</span><span>,</span> <span style=color:#4070a0>string</span>&gt;();
+
+points.<span style=color:#007020;font-weight:700>set</span>({ x: <span style=color:#902000>0</span>, y: <span style=color:#902000>0</span> }, <span style=color:#4070a0>&#34;The origin&#34;</span>);
+
+points.<span style=color:#007020;font-weight:700>get</span>({ x: <span style=color:#902000>0</span>, y: <span style=color:#902000>0</span> }); <span style=color:#60a0b0;font-style:italic>// The origin
+</span></code></pre></div><h2 id=peeking-into-the-future>Peeking into the Future</h2>
+<p>As mentioned in the post linked above, there&rsquo;s a potential built-in solution to this problem not too far away. The <a href=https://github.com/tc39/proposal-record-tuple>Records & Tuples Proposal</a>
+aims to introduce deeply immutable data structures, allowing for the following new syntax:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-ts data-lang=ts>points.<span style=color:#007020;font-weight:700>set</span>(<span>#</span>{ x: <span style=color:#902000>0</span>, y: <span style=color:#902000>0</span> }, <span style=color:#4070a0>&#34;The origin&#34;</span>);
+</code></pre></div><p>Notice the <code>#</code> symbol preceding the object literal. This is how the proposal intends to signify the object should be
+immutable, which would allow for value based equality testing.</p>
+<p>This will be a great step forward for the JavaScript spec, but until that happens I&rsquo;ll continue to use <code>CompoundMap</code>
+(and <code>CompoundSet</code>) in situations that don&rsquo;t warrant pulling in larger dependencies.</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
