@@ -32,6 +32,84 @@
 AWS ALBs, Lambda@Edge, and even with S3 object metadata. In this post I&rsquo;m going to share yet another method that we&rsquo;ve
 recently started using at MyBuilder: CloudFront Functions.</p>
 <meta http-equiv=refresh content="0; url=https://tech.mybuilder.com/handling-redirects-with-cloudfront-functions/">
+<p>We recently moved our entire web stack to AWS Lambda using the popular <a href=https://bref.sh>Bref</a> project. Replacing our
+traditional LAMP stack with a Serverless approach feels like a great step forward, but without Apache we needed a new
+way to ensure all traffic on mybuilder.com gets redirected and served from our canonical domain, <a href=https://www.mybuilder.com>www.mybuilder.com</a>.</p>
+<p>Last year AWS released CloudFront Functions, a lightweight compute platform that runs on the CloudFront edge network.
+There are a few performance related limitations, such as a one millisecond max execution time, but it&rsquo;s ideal for simple
+use cases like redirects.</p>
+<p>All we have to do is define a JavaScript handler function (ECMAScript 5.1 at the time of writing) that inspects the
+request and returns a redirect response if necessary. CloudFront passes us an <a href=https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/functions-event-structure.html>event object</a>
+containing the request, from which we can pluck out the <code>Host</code> header for inspection:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#007020;font-weight:700>function</span> handler(event) {
+  <span style=color:#007020;font-weight:700>var</span> host <span style=color:#666>=</span>
+    (event.request.headers.host <span style=color:#666>&amp;&amp;</span>
+      event.request.headers.host.value) <span style=color:#666>||</span>
+    <span style=color:#4070a0>&#39;&#39;</span>;
+
+  <span style=color:#007020;font-weight:700>if</span> (host.indexOf(<span style=color:#4070a0>&#39;www.&#39;</span>) <span style=color:#666>===</span> <span style=color:#40a070>0</span>) {
+    <span style=color:#007020;font-weight:700>return</span> event.request;
+  }
+
+  <span style=color:#007020;font-weight:700>var</span> queryString <span style=color:#666>=</span> <span style=color:#007020>Object</span>.keys(event.request.querystring)
+    .map(key =&gt; key <span style=color:#666>+</span> <span style=color:#4070a0>&#39;=&#39;</span> <span style=color:#666>+</span> event.request.querystring[key].value)
+    .join(<span style=color:#4070a0>&#39;&amp;&#39;</span>);
+
+  <span style=color:#007020;font-weight:700>return</span> {
+    statusCode<span style=color:#666>:</span> <span style=color:#40a070>301</span>,
+    statusDescription<span style=color:#666>:</span> <span style=color:#4070a0>&#39;Moved Permanently&#39;</span>,
+    headers<span style=color:#666>:</span> {
+      location<span style=color:#666>:</span> {
+        value<span style=color:#666>:</span>
+          <span style=color:#4070a0>&#39;https://www.&#39;</span> <span style=color:#666>+</span>
+          host <span style=color:#666>+</span>
+          event.request.uri <span style=color:#666>+</span>
+          (queryString.length <span style=color:#666>&gt;</span> <span style=color:#40a070>0</span> <span style=color:#666>?</span> <span style=color:#4070a0>&#39;?&#39;</span> <span style=color:#666>+</span> queryString <span style=color:#666>:</span> <span style=color:#4070a0>&#39;&#39;</span>),
+      },
+    },
+  };
+}
+</code></pre></div><p>If the incoming request already begins <code>www.</code>, the original request object is returned and CloudFront sends it to the
+origin as usual. Otherwise, we construct a new request URI and tell CloudFront to issue a redirect response instead.</p>
+<p>Inspecting the headers with cURL confirms it&rsquo;s being handled by CloudFront Functions:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>$ curl -I https://mybuilder.com
+HTTP/2 <span style=color:#40a070>301</span>
+server: CloudFront
+location: https://www.mybuilder.com/
+x-cache: FunctionGeneratedResponse from cloudfront
+...
+</code></pre></div><h2 id=infrastructure-as-code>Infrastructure as Code</h2>
+<p>The story doesn&rsquo;t end there, though. We&rsquo;re also pretty big believers in automation at MyBuilder, so it would be remiss
+of me not to include how we codify this part of our infrastructure. We use tools like Terraform whenever possible to
+take the pain out of manual configuration.</p>
+<p>The following Terraform configuration shows how we can reference the JavaScript above to provision a CloudFront Function
+and attach it to a CloudFront Distribution:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_cloudfront_function&#34; &#34;www_redirect&#34;</span> {
+  name    <span style=color:#666>=</span> <span style=color:#4070a0>&#34;www-redirect&#34;</span>
+  runtime <span style=color:#666>=</span> <span style=color:#4070a0>&#34;cloudfront-js-1.0&#34;</span>
+  code    <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>file</span>(<span style=color:#4070a0>&#34;${path.module}/www-redirect.js&#34;</span>)
+  publish <span style=color:#666>=</span> <span style=color:#902000>true</span>
+}
+
+<span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_cloudfront_distribution&#34; &#34;main&#34;</span> {
+  ...
+
+  <span style=color:#007020;font-weight:700>default_cache_behavior</span> {
+    ...
+
+    <span style=color:#007020;font-weight:700>function_association</span> {
+      event_type   <span style=color:#666>=</span> <span style=color:#4070a0>&#34;viewer-request&#34;</span>
+      function_arn <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>aws_cloudfront_function</span>.<span style=color:#007020;font-weight:700>www_redirect</span>.<span style=color:#007020;font-weight:700>arn</span>
+    }
+  }
+}
+</code></pre></div><h2 id=conclusion>Conclusion</h2>
+<p>Our move to CloudFront Functions has benefited us in more ways than one. Not only is it super cheap (a sixth of the cost
+of Lambda@Edge!), but it also feels more correct to isolate this concern at an infrastructural level, rather than within
+our own runtime.</p>
+<p>We&rsquo;ve been using CloudFront to handle the web delivery part of our stack for a while, and that&rsquo;s unlikely to change any
+time soon. So, while there will undoubtedly be another method for handling redirects just around the corner, it does
+feel like we&rsquo;ve landed on something that will stick.</p>
 </div>
 </main>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
