@@ -1,0 +1,241 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Codifying Authentication for Terraform Cloud in an AWS Control Tower Environment &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/css/poole.css>
+<link type=text/css rel=stylesheet href=/css/syntax.css>
+<link type=text/css rel=stylesheet href=/css/hyde.css>
+<link type=text/css rel=stylesheet href=/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Codifying Authentication for Terraform Cloud in an AWS Control Tower Environment</h1>
+<time datetime=2022-06-23T00:00:00Z class=post-date>Thu, Jun 23, 2022</time>
+<p>I recently stumbled upon an old diagram I drew to document part of our platform at <a href=https://www.mybuilder.com>MyBuilder.com</a>,
+and this got me thinking it <em>could</em> be useful to share publicly. Let&rsquo;s see&mldr;</p>
+<img src=multi-aws-account-auth.jpeg>
+<p>The diagram shows a number of AWS accounts used to run applications on Lambda, with access granted to Terraform Cloud
+and GitHub Actions via IAM users. We use Terraform to provision supporting infrastructure like networks and databases,
+and we use the Serverless framework to create runtime resources like Lambda functions.
+What the diagram doesn&rsquo;t show is that we manage the accounts with AWS Control Tower, and what I want to share is how we
+handle authentication for Terraform across a multi-account Control Tower environment.</p>
+<p>Note that this post is specific to Terraform Cloud, where a backend configuration similar to the following is used:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>terraform</span> {
+  <span style=color:#007020;font-weight:700>backend</span> <span style=color:#4070a0>&#34;remote&#34;</span> {
+    organization <span style=color:#666>=</span> <span style=color:#4070a0>&#34;MyBuilder&#34;</span>
+
+    <span style=color:#007020;font-weight:700>workspaces</span> {
+      name <span style=color:#666>=</span> <span style=color:#4070a0>&#34;some-app-prod&#34;</span>
+    }
+  }
+}
+</code></pre></div><p>If you use Terraform CLI then the OIDC protocol (OpenID Connect) is another option worth considering, but at the time of
+writing <a href=https://discuss.hashicorp.com/t/oidc-auth-aws-azure/35463/2>this is not supported by Terraform Cloud</a>.
+Instead, the process described here requires an IAM user with an access key in the root AWS account. We&rsquo;ll authenticate
+as this user and use the <a href=https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html>STS AssumeRole action</a>
+to access the child accounts.</p>
+<p>Now, if you&rsquo;re anything like me then the thought of creating resources by clicking around the AWS console makes you
+shudder, and most of the time we don&rsquo;t have to. It wouldn&rsquo;t take a moment
+to codify an IAM user, but unfortunately we&rsquo;ll find ourselves in a bit of a chicken and egg scenario trying to provision
+it: Terraform needs an IAM user to gain access!</p>
+<p>I always feel a sense of fragility when a system&rsquo;s desired state isn&rsquo;t codified, so manually creating an
+IAM user for something so critical is painful. There are a few similar cases where we&rsquo;ve had no choice, but
+we make sure they&rsquo;re documented in our Terraform repository. Here&rsquo;s the first entry in <code>MANUALCONFIG.md</code>:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-json data-lang=json><span>-</span> <span>Created</span> <span>the</span> <span>TerraformCloud</span> <span>IAM</span> <span>user</span> <span>with</span> <span>inline</span> <span>policy:</span>
+
+  {
+    <span style=color:#062873;font-weight:700>&#34;Version&#34;</span>: <span style=color:#4070a0>&#34;2012-10-17&#34;</span>,
+    <span style=color:#062873;font-weight:700>&#34;Statement&#34;</span>: [
+      {
+        <span style=color:#062873;font-weight:700>&#34;Effect&#34;</span>: <span style=color:#4070a0>&#34;Allow&#34;</span>,
+        <span style=color:#062873;font-weight:700>&#34;Action&#34;</span>: <span style=color:#4070a0>&#34;sts:AssumeRole&#34;</span>,
+        <span style=color:#062873;font-weight:700>&#34;Resource&#34;</span>: [
+          <span style=color:#4070a0>&#34;arn:aws:iam::*:role/InfraProvisioner&#34;</span>,
+          <span style=color:#4070a0>&#34;arn:aws:iam::*:role/AWSControlTowerExecution&#34;</span>
+        ]
+      }
+    ]
+  }
+</code></pre></div><p>The policy allows the user to assume the <code>InfraProvisioner</code> role, so now we just need to create the role in each child
+account. Fortunately (for our sanity) we don&rsquo;t have to do this manually&mldr;</p>
+<p>Notice the <code>AWSControlTowerExecution</code> role in the policy; this is present in each account managed by Control Tower and
+has unrestricted permission to perform any action. We <em>could</em> just use this role for all Terraform Cloud access going forward, but it&rsquo;s better not to depend on
+a Control Tower implementation detail if we can help it; AWS could change or remove the role without notice and break our workflows.
+Instead, we use this role in a one-off task to
+create the <code>InfraProvisioner</code> role, which we know will be safe to use going forward. This also allows us to attach a
+custom policy with restrictions on what Terraform is allowed to do.</p>
+<p>With this mind, here&rsquo;s how we configure the AWS provider to provision the roles:</p>
+<div class="highlight-filename before">projects/infra-provisioner-roles/config.tf</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>provider</span> <span style=color:#4070a0>&#34;aws&#34;</span> {
+  alias      <span style=color:#666>=</span> <span style=color:#4070a0>&#34;prod&#34;</span>
+  region     <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_region</span>
+  access_key <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_access_key</span>
+  secret_key <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_secret_key</span>
+
+  <span style=color:#007020;font-weight:700>assume_role</span> {
+    role_arn <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>format</span>(
+      <span style=color:#4070a0>&#34;arn:aws:iam::%s:role/AWSControlTowerExecution&#34;</span>,
+      <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_accounts</span>[<span style=color:#4070a0>&#34;prod&#34;][&#34;account_id&#34;</span>]
+    )
+    session_name <span style=color:#666>=</span> <span style=color:#4070a0>&#34;TerraformCloudViaControlTower&#34;</span>
+  }
+}
+</code></pre></div><p>The <code>access_key</code> and <code>secret_key</code> attributes come from the IAM access key created earlier, and the Control Tower role is
+specified in the <code>role_arn</code> attribute. Terraform will assume this role in the <code>prod</code> account by looking up an account ID
+in the <code>aws_accounts</code> map variable, defined as follows:</p>
+<div class="highlight-filename before">projects/infra-provisioner-roles/variables.tf</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;aws_accounts&#34;</span> {
+  type <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>map</span>(<span style=color:#007020;font-weight:700>object</span>({
+    account_id  <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>string</span>
+    external_id <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>string</span>
+  }))
+}
+</code></pre></div><p>The <code>external_id</code> attribute is a secret string that provides an additional layer of security. It will form part of the
+policy on the new role and will be required in calls to the AssumeRole action. We configure <code>aws_accounts</code> to look like
+this in the Terraform Cloud workspace:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl>aws_accounts <span style=color:#666>=</span> {
+  prod <span style=color:#666>=</span> {
+    account_id  <span style=color:#666>=</span> <span style=color:#4070a0>&#34;prod account ID&#34;</span>
+    external_id <span style=color:#666>=</span> <span style=color:#4070a0>&#34;...secret string...&#34;</span>
+  }
+  staging <span style=color:#666>=</span> {
+    ...
+  }
+}
+</code></pre></div><p>In practice there are many more accounts in the map, otherwise it might just be simpler to maintain a few basic
+variables.</p>
+<p>Next, we need to define an IAM policy to limit what the <code>InfraProvisioner</code> role can do. At the very least this should
+limit scope to the services we expect Terraform to maintain. It may also be desirable to block actions that delete
+certain types of resources, just in case a destroy plan is accidentally applied (or not accidentally!).</p>
+<p>For demonstration purposes I&rsquo;ve specified wide open permissions, but I wouldn&rsquo;t recommend this anywhere in the real
+world&mldr;</p>
+<div class="highlight-filename before">projects/infra-provisioner-roles/policy.tf</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>data</span> <span style=color:#4070a0>&#34;aws_iam_policy_document&#34; &#34;infra_provisioner_policy&#34;</span> {
+  <span style=color:#007020;font-weight:700>statement</span> {
+    actions   <span style=color:#666>=</span> [<span style=color:#4070a0>&#34;*&#34;</span>]
+    resources <span style=color:#666>=</span> [<span style=color:#4070a0>&#34;*&#34;</span>]
+  }
+}
+</code></pre></div><p>Creation of the actual role is handled by a module that gets invoked once for each account, as follows:</p>
+<div class="highlight-filename before">projects/infra-provisioner-roles/main.tf</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>module</span> <span style=color:#4070a0>&#34;provisioner_role_prod&#34;</span> {
+  source <span style=color:#666>=</span> <span style=color:#4070a0>&#34;modules/assume-role&#34;</span>
+
+  providers <span style=color:#666>=</span> {
+    aws <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>aws</span>.<span style=color:#007020;font-weight:700>prod</span>
+  }
+
+  name           <span style=color:#666>=</span> <span style=color:#4070a0>&#34;InfraProvisioner&#34;</span>
+  policy         <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>data</span>.<span style=color:#007020;font-weight:700>aws_iam_policy_document</span>.<span style=color:#007020;font-weight:700>infra_provisioner_policy</span>.<span style=color:#007020;font-weight:700>json</span>
+  trusted_entity <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>format</span>(<span style=color:#4070a0>&#34;arn:aws:iam::%s:user/TerraformCloud&#34;</span>, <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_root_account_id</span>)
+  external_id    <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_accounts</span>[<span style=color:#4070a0>&#34;prod&#34;][&#34;external_id&#34;</span>]
+}
+
+<span style=color:#007020;font-weight:700>module</span> <span style=color:#4070a0>&#34;provisioner_role_staging&#34;</span> {
+  ...
+}
+</code></pre></div><p>Notice the <code>trusted_entity</code> attribute. This specifies the AWS principal that will be granted access to the role (the
+root IAM user in this case), and the module will take care of enforcing this in the role policy.</p>
+<p>We should end up with a provider block and a module invocation for each account. All this duplication can&rsquo;t be
+avoided because <a href=https://github.com/hashicorp/terraform/issues/24476>we can&rsquo;t pass providers to modules dynamically</a>,
+but hopefully this will change in an upcoming release of Terraform.</p>
+<p>Lastly, we define the <code>assume-role</code> module as follows:</p>
+<div class="highlight-filename before">modules/assume-role/main.tf</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;name&#34;</span> {}
+<span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;policy&#34;</span> {}
+<span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;trusted_entity&#34;</span> {}
+<span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;external_id&#34;</span> {}
+
+<span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_iam_role&#34; &#34;assume_role&#34;</span> {
+  name               <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>name</span>
+  assume_role_policy <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>data</span>.<span style=color:#007020;font-weight:700>aws_iam_policy_document</span>.<span style=color:#007020;font-weight:700>assume_role</span>.<span style=color:#007020;font-weight:700>json</span>
+}
+
+<span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_iam_policy&#34; &#34;assume_role&#34;</span> {
+  name   <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>name</span>
+  policy <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>policy</span>
+}
+
+<span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_iam_role_policy_attachment&#34; &#34;assume_role&#34;</span> {
+  role       <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>aws_iam_role</span>.<span style=color:#007020;font-weight:700>assume_role</span>.<span style=color:#007020;font-weight:700>name</span>
+  policy_arn <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>aws_iam_policy</span>.<span style=color:#007020;font-weight:700>assume_role</span>.<span style=color:#007020;font-weight:700>arn</span>
+}
+
+<span style=color:#007020;font-weight:700>data</span> <span style=color:#4070a0>&#34;aws_iam_policy_document&#34; &#34;assume_role&#34;</span> {
+  <span style=color:#007020;font-weight:700>statement</span> {
+    actions <span style=color:#666>=</span> [<span style=color:#4070a0>&#34;sts:AssumeRole&#34;</span>]
+
+    <span style=color:#007020;font-weight:700>principals</span> {
+      type        <span style=color:#666>=</span> <span style=color:#4070a0>&#34;AWS&#34;</span>
+      identifiers <span style=color:#666>=</span> [<span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>trusted_entity</span>]
+    }
+
+    <span style=color:#007020;font-weight:700>condition</span> {
+      test     <span style=color:#666>=</span> <span style=color:#4070a0>&#34;StringEquals&#34;</span>
+      variable <span style=color:#666>=</span> <span style=color:#4070a0>&#34;sts:ExternalId&#34;</span>
+      values   <span style=color:#666>=</span> [<span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>external_id</span>]
+    }
+  }
+}
+</code></pre></div><h2 id=putting-it-all-together>Putting It All Together</h2>
+<p>We now have an IAM user with an access key in the root account and an IAM role in each account we want Terraform to
+provision resources in. The last thing to show is how we use the new role to authenticate.</p>
+<p>An example configuration for a project that defines the infrastructure of some app could look like this:</p>
+<div class="highlight-filename before">projects/some-app/variables.auth.tf</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;aws_region&#34;</span> {}
+<span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;aws_access_key&#34;</span> {}
+<span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;aws_secret_key&#34;</span> {}
+<span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;aws_account_id&#34;</span> {}
+<span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;aws_role_external_id&#34;</span> {}
+</code></pre></div><div class="highlight-filename before">projects/some-app/config.tf</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>provider</span> <span style=color:#4070a0>&#34;aws&#34;</span> {
+  region     <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_region</span>
+  access_key <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_access_key</span>
+  secret_key <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_secret_key</span>
+
+  <span style=color:#007020;font-weight:700>assume_role</span> {
+    role_arn <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>format</span>(
+      <span style=color:#4070a0>&#34;arn:aws:iam::%s:role/InfraProvisioner&#34;</span>,
+      <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_account_id</span>
+    )
+    external_id  <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>aws_role_external_id</span>
+    session_name <span style=color:#666>=</span> <span style=color:#4070a0>&#34;TerraformCloud&#34;</span>
+  }
+}
+</code></pre></div><div class="highlight-filename before">projects/some-app/network.tf</div>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_vpc&#34; &#34;some_app_vpc&#34;</span> {
+  ...
+}
+</code></pre></div><h2 id=wrapping-up>Wrapping Up</h2>
+<p>Looking back it feels like we&rsquo;ve got a lot of configuration for not a lot in return! However, the value of this
+approach becomes clear as you scale up the number of accounts under Control Tower&rsquo;s management. At MyBuilder we
+currently manage ~70 accounts, so having some kind of automation in place for creating all the roles is a necessity. The
+value becomes clearer still when you consider that we need to maintain all of this again for authentication from other
+platforms, e.g. GitHub Actions.</p>
+<p>In the future I&rsquo;m hoping we can simplify some of this configuration by using OIDC. It would likely still require the
+manual configuration of an <a href=https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html>IAM OIDC identity provider</a>,
+but there would be no need to maintain an IAM user and access key.</p>
+<p>Hopefully someone finds the ideas described here useful in some way. Happy Terraforming!</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
