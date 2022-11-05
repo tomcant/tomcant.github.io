@@ -1,0 +1,57 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Managing Deployment Stages with Workspaces in Terraform Cloud &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/css/poole.css>
+<link type=text/css rel=stylesheet href=/css/syntax.css>
+<link type=text/css rel=stylesheet href=/css/hyde.css>
+<link type=text/css rel=stylesheet href=/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Managing Deployment Stages with Workspaces in Terraform Cloud</h1>
+<time datetime=2022-09-27T00:00:00Z class=post-date>Tue, Sep 27, 2022</time>
+<p>When using Terraform to manage resources across deployment stages (e.g. staging, prod), it can be useful to have the name of the stage for inclusion in resource naming, such as domain names, S3 bucket names, etc.</p>
+<p>Terraform provides <a href=https://developer.hashicorp.com/terraform/cloud-docs/workspaces>the workspaces feature</a> as a way to maintain multiple versions of a single configuration, so this is ideal for managing collections of resources as deployment stages. However, the feature <a href=https://developer.hashicorp.com/terraform/cloud-docs/workspaces#terraform-cloud-vs-terraform-cli-workspaces>behaves differently</a> depending on which edition of Terraform you use (OSS/CLI vs Cloud).</p>
+<p>A variable containing the name of the current workspace is automatically provided in all editions: <code>${terraform.workspace}</code>. When using OSS/CLI its value is either <code>default</code> or the name supplied in the last <code>terraform workspace select ...</code> command. With workspaces named <code>staging</code> and <code>prod</code>, for example, this makes the name of the stage readily available for interpolation in resource names. However, at the time of writing, this variable will always be <code>default</code> in the Cloud edition, regardless of the chosen workspace.</p>
+<p>The reason for this difference stems from how each edition represents a workspace: OSS/CLI uses a separate local directory for each workspace&rsquo;s state; Cloud makes a copy of the entire project per workspace and uses a single &ldquo;default&rdquo; directory for each one.</p>
+<p>Fortunately, with a bit of experimentation we can replicate the OSS/CLI behaviour in the Cloud edition. By using <a href=https://developer.hashicorp.com/terraform/language/resources/provisioners/local-exec>the local-exec provisioner</a> we can inspect the environment of the Terraform Cloud container used to plan and apply configuration:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;null_resource&#34; &#34;env&#34;</span> {
+  <span style=color:#007020;font-weight:700>provisioner</span> <span style=color:#4070a0>&#34;local-exec&#34;</span> {
+    command <span style=color:#666>=</span> <span style=color:#4070a0>&#34;env&#34;</span>
+  }
+}
+</code></pre></div><p>Buried in the output we can see an environment variable containing the full name of the Cloud workspace, <code>my-app-staging</code>:</p>
+<img src=terraform-cloud-apply-log.png>
+<p>Since it begins <code>TF_VAR_</code>, we can read this environment variable into a regular Terraform variable and manipulate it to retrieve the name of the deployment stage:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>variable</span> <span style=color:#4070a0>&#34;TFC_WORKSPACE_NAME&#34;</span> {}
+
+<span style=color:#007020;font-weight:700>locals</span> {
+  stage <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>trimprefix</span>(<span style=color:#007020;font-weight:700>var</span>.<span style=color:#007020;font-weight:700>TFC_WORKSPACE_NAME</span>, <span style=color:#4070a0>&#34;my-app-&#34;</span>)
+}
+</code></pre></div><p>Now we can use <code>${local.stage}</code> in string interpolations and reflect the behaviour of the OSS/CLI edition.</p>
+<p>An alternative approach is to configure your Terraform Cloud workspace to use the &ldquo;Local&rdquo; execution mode, as opposed to the default &ldquo;Remote&rdquo;. You still get some benefits of working with the Cloud edition (e.g. team collaboration and synchronised remote state), but you must run the plan and apply steps manually on your local machine, where you also benefit from the OSS/CLI workspace behaviour. Personally, I still opt for the &ldquo;Remote&rdquo; execution mode because I prefer a fully managed solution in which everything is centralised, leaving nothing to the configuration of my personal machine.</p>
+<p>Using the <code>TF_VAR_TFC_WORKSPACE_NAME</code> environment variable provides a simple workaround for determining the name of the deployment stage based on the name of a Terraform Cloud workspace. Hopefully this post will save someone time in figuring this out themselves!</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
