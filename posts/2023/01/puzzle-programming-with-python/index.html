@@ -1,0 +1,274 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Puzzle Programming with Python &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/css/poole.css>
+<link type=text/css rel=stylesheet href=/css/syntax.css>
+<link type=text/css rel=stylesheet href=/css/hyde.css>
+<link type=text/css rel=stylesheet href=/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Puzzle Programming with Python</h1>
+<time datetime=2023-01-25T00:00:00Z class=post-date>Wed, Jan 25, 2023</time>
+<p>For the last few years I&rsquo;ve been taking part in the <a href=https://adventofcode.com/>Advent of Code</a> programming contest.
+It&rsquo;s been a great way to improve my problem-solving skills and can really aid in getting to grips with new languages.
+In 2022 <a href=https://github.com/tomcant/advent-of-code/tree/main/2022/python/solutions>I chose to solve the puzzles with Python</a>, and having enjoyed using the language so much I decided to write about some of the features that I think make it great for this type of programming.</p>
+<p>So, in no particular order&mldr;</p>
+<ol>
+<li><a href=#comprehension>Comprehension</a></li>
+<li><a href=#decorator-functions>Decorator functions</a></li>
+<li><a href=#counter-class>Counter class</a></li>
+<li><a href=#comparison-chaining>Comparison chaining</a></li>
+<li><a href=#positive-modulo>Positive modulo</a></li>
+<li><a href=#floor-division>Floor division</a></li>
+<li><a href=#negative-indices>Negative indices</a></li>
+</ol>
+<h3 id=comprehension>Comprehension</h3>
+<p>A comprehension is a language construct used to express items in a list.
+For example, here&rsquo;s a list of the first few odd numbers squared:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python>squares <span style=color:#666>=</span> [n <span style=color:#666>**</span> <span style=color:#40a070>2</span> <span style=color:#007020;font-weight:700>for</span> n <span style=color:#007020;font-weight:700>in</span> <span style=color:#007020>range</span>(<span style=color:#40a070>10</span>) <span style=color:#007020;font-weight:700>if</span> n <span style=color:#666>%</span> <span style=color:#40a070>2</span> <span style=color:#666>==</span> <span style=color:#40a070>1</span>]
+</code></pre></div><p>What I like about this is that it reads more like a definition than a set of instructions for constructing the list.
+Here&rsquo;s how we might do the same thing without comprehension:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python>squares <span style=color:#666>=</span> []
+<span style=color:#007020;font-weight:700>for</span> n <span style=color:#007020;font-weight:700>in</span> <span style=color:#007020>range</span>(<span style=color:#40a070>10</span>):
+    <span style=color:#007020;font-weight:700>if</span> n <span style=color:#666>%</span> <span style=color:#40a070>2</span> <span style=color:#666>==</span> <span style=color:#40a070>1</span>:
+        squares<span style=color:#666>.</span>append(n <span style=color:#666>**</span> <span style=color:#40a070>2</span>)
+</code></pre></div><p>Not only is the comprehension more succinct, it also saves us from having to maintain the intermediate states of the list while it&rsquo;s being populated.
+In general, avoiding the need to maintain state can help insulate our code from a whole class of tricky bugs.</p>
+<h4 id=advent-of-code-day-22--monkey-map>Advent of Code, Day 22 – Monkey Map</h4>
+<p>A common theme when solving Advent of Code puzzles is navigation through some form of grid.
+<a href=https://adventofcode.com/2022/day/22>Day 22</a> involved reading a grid like the following:</p>
+<pre tabindex=0><code>        ...#
+        .#..
+        #...
+        ....
+...#.......#
+........#...
+..#....#....
+..........#.
+        ...#....
+        .....#..
+        .#......
+        ......#.
+</code></pre><p>The <code>#</code> symbol marks the location of a wall, <code>.</code> marks open space and whitespace is out of bounds.
+I usually read grids like this into a set or dictionary data structure, depending on the context.
+This grid can be parsed into a dictionary with the following comprehension:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python>grid <span style=color:#666>=</span> {
+    (x, y): char
+    <span style=color:#007020;font-weight:700>for</span> y, row <span style=color:#007020;font-weight:700>in</span> <span style=color:#007020>enumerate</span>(raw_grid<span style=color:#666>.</span>splitlines())
+    <span style=color:#007020;font-weight:700>for</span> x, char <span style=color:#007020;font-weight:700>in</span> <span style=color:#007020>enumerate</span>(row)
+    <span style=color:#007020;font-weight:700>if</span> char <span style=color:#666>!=</span> <span style=color:#4070a0>&#39; &#39;</span>
+}
+</code></pre></div><p>This gives us all the <code>(x, y)</code> coordinates mapped to the characters in those locations, excluding anything that&rsquo;s out of bounds.
+We could parse the grid in a number of other ways, but I like this way the most because it feels more robust as a definition than it would as a set of instructions.</p>
+<h3 id=decorator-functions>Decorator functions</h3>
+<p>Python has the ability to decorate functions with other functions, essentially allowing us to enhance their behaviour at runtime.
+This can be useful when implementing cross-cutting concerns like logging, timing or caching.</p>
+<p>For example, if we wanted to implement function call timing we could define a decorator function like this:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#007020;font-weight:700>import</span> <span style=color:#0e84b5;font-weight:700>time</span>
+
+<span style=color:#007020;font-weight:700>def</span> <span style=color:#06287e>timer</span>(func):
+    <span style=color:#007020;font-weight:700>def</span> <span style=color:#06287e>wrap</span>(<span style=color:#666>*</span>args, <span style=color:#666>**</span>named_args):
+        t1 <span style=color:#666>=</span> time<span style=color:#666>.</span>time()
+        result <span style=color:#666>=</span> func(<span style=color:#666>*</span>args, <span style=color:#666>**</span>named_args)
+        t2 <span style=color:#666>=</span> time<span style=color:#666>.</span>time()
+
+        <span style=color:#007020>print</span>(<span style=color:#4070a0>f</span><span style=color:#4070a0>&#39;[timer] &#34;</span><span style=color:#70a0d0;font-style:italic>{</span>func<span style=color:#666>.</span>__name__<span style=color:#70a0d0;font-style:italic>}</span><span style=color:#4070a0>&#34; took </span><span style=color:#70a0d0;font-style:italic>{</span>(t2 <span style=color:#666>-</span> t1)<span style=color:#70a0d0;font-style:italic>:</span><span style=color:#4070a0>.5f</span><span style=color:#70a0d0;font-style:italic>}</span><span style=color:#4070a0>s&#39;</span>)
+
+        <span style=color:#007020;font-weight:700>return</span> result
+
+    <span style=color:#007020;font-weight:700>return</span> wrap
+</code></pre></div><p>We can now time how long specific functions take to run:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#555;font-weight:700>@timer</span>
+<span style=color:#007020;font-weight:700>def</span> <span style=color:#06287e>some_func</span>():
+    <span style=color:#007020>print</span>(<span style=color:#4070a0>&#39;running function &#34;some_func&#34;&#39;</span>)
+    time<span style=color:#666>.</span>sleep(<span style=color:#40a070>1</span>)
+</code></pre></div><p>Calling <code>some_func()</code> gives the following output:</p>
+<pre tabindex=0><code>running function &quot;some_func&quot;
+[timer] &quot;some_func&quot; took 1.00506s
+</code></pre><p>Python comes with lots of built-in decorators, and one which I&rsquo;ve found to be particularly useful when solving Advent of Code puzzles is <code>functools.cache</code>.
+Many of the puzzles can be solved using dynamic programming, whereby the original problem is broken down into sub-problems, usually by making a recursive function call.
+The key to a performant dynamic programming solution is memoization, which involves caching the answers to sub-problems to avoid repeated computation.</p>
+<p>Suppose we have a computationally expensive function call that has a deterministic result based on the values of its parameters.
+It doesn&rsquo;t make sense to call this function more than once with the same arguments because the result doesn&rsquo;t change.
+The <code>functools.cache</code> decorator can enforce this for us:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#007020;font-weight:700>from</span> <span style=color:#0e84b5;font-weight:700>functools</span> <span style=color:#007020;font-weight:700>import</span> cache
+
+<span style=color:#555;font-weight:700>@cache</span>
+<span style=color:#007020;font-weight:700>def</span> <span style=color:#06287e>expensive_func</span>(a, b, c):
+    <span style=color:#666>...</span>
+</code></pre></div><p>As long as the parameters are of hashable types then the <code>@cache</code> decorator can build a deterministic key and perform a lookup against past results.
+Of course, we could implement this cheaply ourselves and just return early, but this would unnecessarily pollute our code with unimportant details.</p>
+<p>Using the decorator is a great example of the language getting out of our way, allowing us to focus on the solution to the problem and nothing else.</p>
+<h4 id=advent-of-code-day-19--not-enough-minerals>Advent of Code, Day 19 – Not Enough Minerals</h4>
+<p>My solution to <a href=https://adventofcode.com/2022/day/19>Day 19</a> used a recursive depth-first search traversal of a tree.
+Each recursive call reflected one of many choices at that position in the tree.
+It turned out that many of the branches could be arrived at in more than one way, so it would be wasteful to traverse the tree without checking for precomputed results at each step.</p>
+<p>We can leverage the built-in <code>functools.cache</code> decorator by using the deterministic attributes of the search as function parameters:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#555;font-weight:700>@cache</span>
+<span style=color:#007020;font-weight:700>def</span> <span style=color:#06287e>search</span>(
+    time_left,
+    ore<span style=color:#666>=</span><span style=color:#40a070>0</span>, clay<span style=color:#666>=</span><span style=color:#40a070>0</span>, obsidian<span style=color:#666>=</span><span style=color:#40a070>0</span>,
+    ore_robots<span style=color:#666>=</span><span style=color:#40a070>1</span>, clay_robots<span style=color:#666>=</span><span style=color:#40a070>0</span>, obsidian_robots<span style=color:#666>=</span><span style=color:#40a070>0</span>
+):
+    <span style=color:#666>...</span>
+</code></pre></div><p>The passed arguments form a key that can be used to store the result of each call, ensuring we never do the same work twice.
+This optimisation reduces the search space so dramatically that the time taken to solve the problem goes from several hours down to just a few seconds!</p>
+<h3 id=counter-class>Counter class</h3>
+<p>Built-in to Python&rsquo;s standard library, <code>Counter</code> is a subclass of the dictionary type used for counting hashable objects.
+Suppose we want to count occurrences of names, we could initialise a <code>Counter</code> as follows:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#007020;font-weight:700>from</span> <span style=color:#0e84b5;font-weight:700>collections</span> <span style=color:#007020;font-weight:700>import</span> Counter
+
+names <span style=color:#666>=</span> Counter([<span style=color:#4070a0>&#39;Alice&#39;</span>, <span style=color:#4070a0>&#39;Bob&#39;</span>, <span style=color:#4070a0>&#39;Charlie&#39;</span>, <span style=color:#4070a0>&#39;Alice&#39;</span>])
+
+<span style=color:#007020>print</span>(names) <span style=color:#60a0b0;font-style:italic># =&gt; Counter({&#39;Alice&#39;: 2, &#39;Bob&#39;: 1, &#39;Charlie&#39;: 1})</span>
+
+<span style=color:#007020>print</span>(names[<span style=color:#4070a0>&#39;Alice&#39;</span>]) <span style=color:#60a0b0;font-style:italic># =&gt; 2</span>
+</code></pre></div><p>The class takes care of counting the given objects based on their values, and a simple API allows us to ask questions like which object is the most common?</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python>names<span style=color:#666>.</span>most_common(<span style=color:#40a070>1</span>) <span style=color:#60a0b0;font-style:italic># =&gt; [(&#39;Alice&#39;, 2)]</span>
+</code></pre></div><p>This makes it perfect for finding the frequencies of characters in a string:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python>chars <span style=color:#666>=</span> Counter(<span style=color:#4070a0>&#39;Puzzle Programming with Python!&#39;</span>)
+
+chars<span style=color:#666>.</span>most_common(<span style=color:#40a070>1</span>) <span style=color:#60a0b0;font-style:italic># =&gt; [(&#39;P&#39;, 3)]</span>
+</code></pre></div><p>Since counting is such a common task, <code>Counter</code> helps minimise repetitive code, thereby decreasing the likelihood of making mistakes.</p>
+<h4 id=advent-of-code-day-23--unstable-diffusion>Advent of Code, Day 23 – Unstable Diffusion</h4>
+<p>On <a href=https://adventofcode.com/2022/day/23>Day 23</a> we were given the locations of seeds on an infinite grid:</p>
+<pre tabindex=0><code>..............
+..............
+.......#......
+.....###.#....
+...#...#.#....
+....#...##....
+...#.###......
+...##.#.##....
+....#..#......
+..............
+..............
+</code></pre><p>The seeds can&rsquo;t be planted too close together, so using a predefined set of rules for how they should move, we had to determine how long it would take for all seeds to come to a suitable resting spot.</p>
+<p>If at any point the rules propose that multiple seeds move to the same location then none of those seeds move.
+This is where <code>Counter</code> can help.
+On each iteration we can build a list of the proposed locations for all seeds and use <code>Counter</code> to tell us if we have duplicates:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python>proposed_locations <span style=color:#666>=</span> apply_rules(current_locations)
+
+counts <span style=color:#666>=</span> Counter(proposed_locations)
+
+<span style=color:#007020;font-weight:700>for</span> location <span style=color:#007020;font-weight:700>in</span> proposed_locations:
+    <span style=color:#007020;font-weight:700>if</span> counts[location] <span style=color:#666>==</span> <span style=color:#40a070>1</span>:
+        <span style=color:#60a0b0;font-style:italic># the proposed location is legal</span>
+        <span style=color:#60a0b0;font-style:italic># so we can move this seed here</span>
+</code></pre></div><p>If I wrote code to count the duplicates myself, it would most likely be less performant and more error-prone than <code>Counter</code>.</p>
+<h3 id=comparison-chaining>Comparison chaining</h3>
+<p>This feature allows you to express multiple comparisons in a single statement.
+For example:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#007020;font-weight:700>if</span> a <span style=color:#666>&lt;</span> b <span style=color:#666>&lt;</span> c:
+    <span style=color:#60a0b0;font-style:italic># a &lt; b and b &lt; c</span>
+</code></pre></div><p>The chained expression is more concise than its longer form and reads the same way we are taught to write mathematical expressions, helping reduce cognitive load when reading code.</p>
+<p>The expression is still evaluated from left to right, so <code>a &lt; b</code> is checked before <code>b &lt; c</code>.
+This means the logic is still short-circuited at the first inequality and remaining terms will not be evaluated.</p>
+<p>In some cases the chained comparison can actually be more performant because each term is guaranteed to be evaluated at most once.
+Suppose <code>b</code> is an expensive function call, then even though it is present in multiple comparisons, it will only be called once.</p>
+<p>The only downside to chained comparisons I can see is that it&rsquo;s easy to abuse them and write conditions that are difficult to read if we are not careful.
+For example, this statement is perfectly valid, but horrible for the reader:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#007020;font-weight:700>if</span> a <span style=color:#666>&lt;</span> b <span style=color:#666>&gt;=</span> c <span style=color:#666>!=</span> d <span style=color:#666>==</span> e:
+    <span style=color:#60a0b0;font-style:italic># a &lt; b and b &gt;= c and c != d and d == e</span>
+</code></pre></div><h4 id=advent-of-code-day-8--treetop-tree-house>Advent of Code, Day 8 – Treetop Tree House</h4>
+<p>On <a href=https://adventofcode.com/2022/day/8>Day 8</a> we were required to iterate through a grid of numbers representing the heights of trees in a forest.
+Starting from a given <code>(x, y)</code> location, iterating towards each edge of the forest looks like this:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#007020;font-weight:700>for</span> dx, dy <span style=color:#007020;font-weight:700>in</span> [(<span style=color:#40a070>0</span>, <span style=color:#666>-</span><span style=color:#40a070>1</span>), (<span style=color:#40a070>0</span>, <span style=color:#40a070>1</span>), (<span style=color:#666>-</span><span style=color:#40a070>1</span>, <span style=color:#40a070>0</span>), (<span style=color:#40a070>1</span>, <span style=color:#40a070>0</span>)]:
+    next_x, next_y <span style=color:#666>=</span> x, y
+
+    <span style=color:#007020;font-weight:700>while</span> <span style=color:#40a070>0</span> <span style=color:#666>&lt;=</span> next_x <span style=color:#666>&lt;</span> max_x <span style=color:#007020;font-weight:700>and</span> <span style=color:#40a070>0</span> <span style=color:#666>&lt;=</span> next_y <span style=color:#666>&lt;</span> max_y:
+        <span style=color:#60a0b0;font-style:italic># (next_x, next_y) is within bounds so it&#39;s</span>
+        <span style=color:#60a0b0;font-style:italic># safe to access the grid at that location</span>
+        tree_height <span style=color:#666>=</span> forest[next_y][next_x]
+
+        <span style=color:#60a0b0;font-style:italic># move on and check the bounds again</span>
+        next_x, next_y <span style=color:#666>=</span> next_x <span style=color:#666>+</span> dx, next_y <span style=color:#666>+</span> dy
+</code></pre></div><p>Using this syntax for bounds checking feels very natural and reads clearly.</p>
+<h3 id=positive-modulo>Positive modulo</h3>
+<p>In most languages, the modulo operator, <code>%</code>, is an implementation of <em>remainder</em> as defined in the <a href=https://en.wikipedia.org/wiki/IEEE_754>IEEE 754 standard for floating-point arithmetic</a>.
+The standard states that the <em>remainder</em> for finite <code>x</code> and finite non-zero <code>y</code> is the result of <code>x - n * y</code>, where <code>n</code> is the closest integer to the value of <code>x / y</code>.
+It also specifies that the sign of the remainder should be the same as the sign of the dividend.
+This means the result can be positive or negative.</p>
+<p>For example, <code>5 % 3</code> is <code>2</code> because <code>5 - round(5/3) * 3</code> is <code>5 - 6</code>, or <code>-1</code>.
+Since this is negative and the original dividend was positive it must be converted by adding the modulus once: <code>-1 + 3</code>.
+Hence, in a seemingly convoluted series of calculations we arrive at the final answer of <code>2</code>.</p>
+<p>Had we started with a negative dividend, <code>-5 % 3</code>, then applying the same method we get <code>-5 - round(-5/3) * 3</code> is <code>-5 - (-6)</code>, or <code>1</code>.
+Since this is positive and the dividend was negative it must be converted by taking off the modulus once: <code>1 - 3</code>, and we arrive at <code>-2</code>.</p>
+<p>However, the modulo operator in Python does not follow IEEE 754, it does its own thing instead.
+The maintainers decided that a negative modulo result isn&rsquo;t as useful as a positive one, hence <code>-5 % 3</code> is <code>1</code> in Python.</p>
+<p>It&rsquo;s easier to see why this would be useful with a less contrived example: suppose we&rsquo;re rotating about a point with <code>0 &lt;= degrees &lt; 360</code>.
+If we rotate beyond <code>360</code> degrees we just use <code>degrees % 360</code> to ensure we stay within the range.
+If we rotate in the opposite direction, below <code>0</code> degrees, we want to wrap around and continue from <code>360</code>.
+In Python, <code>-10 % 360</code> is <code>350</code>, as desired.
+In languages following IEEE 754, the result would be <code>-10</code> and we would have to add <code>360</code> to make the result useful.</p>
+<p>That&rsquo;s not to say the negative modulo is never useful, so Python provides a function in the standard library for calculating it: <code>math.remainder()</code>:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#007020;font-weight:700>from</span> <span style=color:#0e84b5;font-weight:700>math</span> <span style=color:#007020;font-weight:700>import</span> remainder
+
+remainder(<span style=color:#666>-</span><span style=color:#40a070>10</span>, <span style=color:#40a070>360</span>) <span style=color:#60a0b0;font-style:italic># =&gt; -10</span>
+</code></pre></div><h4 id=advent-of-code-day-20--grove-positioning-system>Advent of Code, Day 20 – Grove Positioning System</h4>
+<p><a href=https://adventofcode.com/2022/day/20>Day 20</a> involved reorganising a list of around 5,000 numbers.
+Each number represented how many steps it had to move in the list; a positive number meant move forward, negative meant move backward.
+If a number reaches the start or end of the list then it should wrap around and continue moving.</p>
+<p>I used a circular doubly linked list to store the numbers because moving elements around is much more efficient than it would be with a regular list.
+Each node in the list keeps a pointer to the next node, so to move a node we must determine what its new next pointer should be.
+Once we know this, disconnecting the node and reconnecting it in its new location is trivial.</p>
+<p>Here&rsquo;s how we can determine what the new next pointer should be for a given node:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python>new_next <span style=color:#666>=</span> node<span style=color:#666>.</span>next
+
+<span style=color:#007020;font-weight:700>for</span> _ <span style=color:#007020;font-weight:700>in</span> <span style=color:#007020>range</span>(node<span style=color:#666>.</span>value <span style=color:#666>%</span> list_length):
+    new_next <span style=color:#666>=</span> new_next<span style=color:#666>.</span>next
+</code></pre></div><p><code>node.value</code> could be negative, but since the modulo will always be positive we don&rsquo;t actually need to consider how to move an item backward at all.
+Instead, we always move forward, keeping the logic simple without compromising on readability.</p>
+<h3 id=floor-division>Floor division</h3>
+<p>The floor division operator, <code>//</code>, is syntactic sugar for performing division, rounding down to the nearest whole number and casting the result to an integer.
+For example, <code>5 // 2</code> is <code>2</code>, <code>17 // 5</code> is <code>3</code>.
+In contrast, the regular division operator, <code>/</code>, always results in a floating point number, even when the dividend is an exact multiple of the divisor.</p>
+<p>Of course, we could just write the functionally equivalent <code>int(floor(5 / 2))</code>, but for me, this is all about readability.
+The more concise form is much easier to comprehend, especially when it appears in more complex expressions.</p>
+<p>Also worth a mention is the semi-related <code>divmod()</code> function built into the standard library.
+Sometimes it&rsquo;s useful to perform floor division but keep hold of the otherwise disregarded remainder.
+For example:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python>q, r <span style=color:#666>=</span> <span style=color:#007020>divmod</span>(<span style=color:#40a070>17</span>, <span style=color:#40a070>5</span>) <span style=color:#60a0b0;font-style:italic># =&gt; (3, 2)</span>
+</code></pre></div><h3 id=negative-indices>Negative indices</h3>
+<p>Nothing groundbreaking, but I thought this was worth a mention because it surprises me that negative indices aren&rsquo;t more prevalent among interpreted languages in general.
+Reading from the back of a list can be achieved with <code>list[-1]</code>, <code>list[-2]</code>, etc.
+In most other languages we have to apply a negative offset to the length of the list: <code>list[len(list)-1]</code>.</p>
+<p>We can also use them when referencing a slice of a list.
+Just as <code>list[1:]</code> references from the second item to the last, <code>list[-3:]</code> references just the last three items.</p>
+<h2 id=final-thoughts>Final thoughts</h2>
+<p>Whilst I&rsquo;ve really enjoyed getting to grips with Python, it would be naive of me to think these features are somehow exclusive to the language.
+However, I think it&rsquo;s fair to say that finding a language you feel completely content with is extremely rare;
+once you&rsquo;ve spent enough time with a language you&rsquo;re almost guaranteed to cross something that doesn&rsquo;t agree with your personal taste.
+For the most part, though, I&rsquo;ve found Python to be pretty satisfying.</p>
+<p>My go-to problem-solving language has been JavaScript for a long time, possibly because of its accessibility and ubiquity, but in hindsight it really doesn&rsquo;t lend itself well to the problem-solving domain.
+I used to keep a bank of useful JavaScript snippets that I could reproduce as required when solving puzzles, but it turns out most of these are already built into Python (e.g. <code>Counter</code>, <code>defaultdict</code>, <code>deque</code>, <code>heapq</code>, <code>itertools</code>, <code>functools</code>, &mldr;).</p>
+<p>None of this is to say that Python is perfect, though.
+I haven&rsquo;t even thought about topics like package management or tooling, yet.
+In future I might write about how I&rsquo;d like to see Python change (although probably wishful thinking!).</p>
+<p>Going forward I&rsquo;ll be using Python as my problem-solving language of choice.
+Onwards to Advent of Code 2023!</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
