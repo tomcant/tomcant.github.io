@@ -1,0 +1,277 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Building a Chess AI, Part 1 – Game State &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/css/poole.css>
+<link type=text/css rel=stylesheet href=/css/syntax.css>
+<link type=text/css rel=stylesheet href=/css/hyde.css>
+<link type=text/css rel=stylesheet href=/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Building a Chess AI, Part 1 – Game State</h1>
+<time datetime=2023-03-27T00:00:00Z class=post-date>Mon, Mar 27, 2023</time>
+<p>I&rsquo;ve been saying for years that when I get a bit of spare time I&rsquo;d like to build a chess AI, or <a href=https://en.wikipedia.org/wiki/Chess_engine>chess engine</a> as it is more commonly known.
+So a few months ago I set out to do just that and this post is an overview of the project&rsquo;s first major milestone: modelling game state.</p>
+<p>If you&rsquo;re interested in seeing the full code, check out <a href=https://github.com/tomcant/chess-rs>tomcant/chess-rs</a> on GitHub.</p>
+<p>I had a few high-level goals for the project:</p>
+<ol>
+<li>Play legal chess.</li>
+<li>Play sensible chess.</li>
+<li>Beat me.</li>
+</ol>
+<p>The first goal may seem a bit obvious, but this was the hardest and most time-consuming task.
+Codifying all the nuances of the rules was painstaking and error-prone, but once this was done, playing <em>semi</em>-sensible chess didn&rsquo;t require too much more effort.
+And while the engine can beat me, playing <em>good</em> chess may have to be a future aspiration for the project!</p>
+<p>Whilst performance wasn&rsquo;t a specific goal, I chose to use Rust because it allows me to express high-level concepts with C-like performance, due to its <a href=https://doc.rust-lang.org/book/ch13-04-performance.html>zero-cost abstractions</a>.</p>
+<p>Broadly speaking, the various building blocks of a chess engine (or any two player <a href=https://en.wikipedia.org/wiki/Zero-sum_game>zero-sum</a> board game) are as follows:</p>
+<ul>
+<li>Game state: storing the board, the pieces, whose turn it is, etc.</li>
+<li>Move generation: finding all the available moves in a position.</li>
+<li>Evaluation: determining who&rsquo;s winning and by how much.</li>
+<li>Search: looking for the best move.</li>
+</ul>
+<p>This post will focus on the first topic, but I plan to write about the rest in upcoming posts.</p>
+<h2 id=foundations>Foundations</h2>
+<p>Before getting into the nuts and bolts of game state, I want to highlight a few foundational concepts that can be seen throughout the code: colours, pieces and squares.</p>
+<h3 id=colours>Colours</h3>
+<p>We need to represent the players.
+This will be used to keep track of whose turn it is:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>enum</span> <span style=color:#0e84b5;font-weight:700>Colour</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>White,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>Black,<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><h3 id=pieces>Pieces</h3>
+<p>From white pawns to the black king, pieces are abbreviated as follows:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>enum</span> <span style=color:#0e84b5;font-weight:700>Piece</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>WP,<span style=color:#bbb> </span>WN,<span style=color:#bbb> </span>WB,<span style=color:#bbb> </span>WR,<span style=color:#bbb> </span>WQ,<span style=color:#bbb> </span>WK,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>BP,<span style=color:#bbb> </span>BN,<span style=color:#bbb> </span>BB,<span style=color:#bbb> </span>BR,<span style=color:#bbb> </span>BQ,<span style=color:#bbb> </span>BK,<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>A piece intrinsically has a colour, so it should be cheap to extract this information:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Piece<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>colour</span>(<span style=color:#666>&amp;</span>self)<span style=color:#bbb> </span>-&gt; <span style=color:#0e84b5;font-weight:700>Colour</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>self<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>WP<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>WN<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>WB<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>WR<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>WQ<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>WK<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Colour::White,<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>_<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Colour::Black,<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><h3 id=squares>Squares</h3>
+<p>From 0 to 63, <code>a1</code> to <code>h8</code>, squares are value objects composed of unsigned 8-bit integers:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>struct</span> <span style=color:#0e84b5;font-weight:700>Square</span>(<span style=color:#902000>u8</span>);<span style=color:#bbb>
+</span></code></pre></div><p>It will be useful to be able to extract a square&rsquo;s zero-based index, file or rank:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Square<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>index</span>(<span style=color:#666>&amp;</span>self)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u8</span> {<span style=color:#bbb> </span>self.<span style=color:#40a070>0</span><span style=color:#bbb> </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>file</span>(<span style=color:#666>&amp;</span>self)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u8</span> {<span style=color:#bbb> </span>self.<span style=color:#40a070>0</span><span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span><span style=color:#40a070>7</span><span style=color:#bbb> </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>rank</span>(<span style=color:#666>&amp;</span>self)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u8</span> {<span style=color:#bbb> </span>self.<span style=color:#40a070>0</span><span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>3</span><span style=color:#bbb> </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>We&rsquo;ll see how these foundational concepts evolve as the needs of the engine develop, but for now this provides a good enough base to start thinking about how to represent the board.</p>
+<h2 id=board-representation>Board Representation</h2>
+<p>The decisions made this early on have a far-reaching impact on the overall performance of the engine, so it&rsquo;s worth spending time here to ensure the representation is efficient.
+For example, it might seem intuitive to use an 8x8 array, but this would have a huge negative impact on performance.
+Having to loop over the array and repeatedly check bounds to ensure pieces don&rsquo;t go off the board would really slow down move generation.</p>
+<h3 id=bitboards>Bitboards</h3>
+<p>A much more efficient approach is to use <a href=https://www.chessprogramming.org/Bitboards>bitboards</a>.
+This takes advantage of the fact that the number of squares on a chessboard and the number of bits in a 64-bit data type are the same, making 64-bit variables a very convenient place to store chess pieces!</p>
+<p>Each bit represents the state of a single square on the board, so when a bit is set, a piece will be present on the corresponding square.
+Exactly how the bits correspond to the squares is an implementation detail that changes from engine to engine, but I think it&rsquo;s quite common to see the following layout:</p>
+<style>.chessboard{margin:2em auto 1em;width:70%;display:grid;grid-template-columns:repeat(9,1fr)}.chessboard div{aspect-ratio:1;display:flex;justify-content:center;align-items:center;color:inherit}.chessboard :nth-child(9n){border-right:3px solid #e5e7eb}.chessboard :nth-child(-n+9){border-top:3px solid #e5e7eb}.chessboard .b{background-color:#e5e7eb}.chessboard .w{background-color:#fff}.chessboard .r{border:3px #e5e7eb;border-style:none solid none none;font-weight:700}.chessboard .f{border:3px #e5e7eb;border-style:solid none none;font-weight:700}</style>
+<div class=chessboard>
+<div class=r>8</div><div class=w>56</div><div class=b>57</div><div class=w>58</div><div class=b>59</div><div class=w>60</div><div class=b>61</div><div class=w>62</div><div class=b>63</div>
+<div class=r>7</div><div class=b>48</div><div class=w>49</div><div class=b>50</div><div class=w>51</div><div class=b>52</div><div class=w>53</div><div class=b>54</div><div class=w>55</div>
+<div class=r>6</div><div class=w>40</div><div class=b>41</div><div class=w>42</div><div class=b>43</div><div class=w>44</div><div class=b>45</div><div class=w>46</div><div class=b>47</div>
+<div class=r>5</div><div class=b>32</div><div class=w>33</div><div class=b>34</div><div class=w>35</div><div class=b>36</div><div class=w>37</div><div class=b>38</div><div class=w>39</div>
+<div class=r>4</div><div class=w>24</div><div class=b>25</div><div class=w>26</div><div class=b>27</div><div class=w>28</div><div class=b>29</div><div class=w>30</div><div class=b>31</div>
+<div class=r>3</div><div class=b>16</div><div class=w>17</div><div class=b>18</div><div class=w>19</div><div class=b>20</div><div class=w>21</div><div class=b>22</div><div class=w>23</div>
+<div class=r>2</div><div class=w>8</div><div class=b>9</div><div class=w>10</div><div class=b>11</div><div class=w>12</div><div class=b>13</div><div class=w>14</div><div class=b>15</div>
+<div class=r>1</div><div class=b>0</div><div class=w>1</div><div class=b>2</div><div class=w>3</div><div class=b>4</div><div class=w>5</div><div class=b>6</div><div class=w>7</div>
+<div></div><div class=f>a</div><div class=f>b</div><div class=f>c</div><div class=f>d</div><div class=f>e</div><div class=f>f</div><div class=f>g</div><div class=f>h</div>
+</div>
+<p>I chose this layout because it feels most natural, with indices running from 0 to 63, <code>a1</code> to <code>h8</code>.
+This also matches the way <code>Square</code> works, with <code>Square(0)</code> being <code>a1</code>, etc.</p>
+<p>The Rust <code>u64</code> unsigned integer type will be perfect for this use case.
+For example, suppose we have a bitboard for the white king on its start square, <code>e1</code>:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>white_king: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>4</span>;<span style=color:#bbb>
+</span></code></pre></div><p>The value <code>1 &lt;&lt; 4</code> equates to the binary pattern <code>10000</code>, preceded by 59 zeros: a single bit set in the 4th index, which is <code>e1</code>.
+Now consider the white rooks on <code>a1</code> and <code>h1</code>:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>white_rooks: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span>(<span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>0</span>)<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>(<span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>7</span>);<span style=color:#bbb>
+</span></code></pre></div><p>This looks like <code>10000001</code>, preceded by 56 zeros, where the 0th and 7th bits are set.
+The actual value of <code>white_rooks</code> in this case is 129, or <code>2^0 + 2^7</code>, but for the purpose of thinking about the chessboard we needn&rsquo;t worry about actual values.</p>
+<p>Consider the black rooks on <code>a8</code> and <code>h8</code>:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>black_rooks: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span>(<span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>56</span>)<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>(<span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>63</span>);<span style=color:#bbb>
+</span></code></pre></div><p>This equates to 9295429630892703744, so it&rsquo;s much simpler to think in terms of indices!</p>
+<p>Adding a piece to the board is just a bitwise OR operation to set the desired bit index:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust>black_rooks<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>(<span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>3</span>);<span style=color:#bbb> </span><span style=color:#60a0b0;font-style:italic>// Put a black rook on d1
+</span></code></pre></div><p>Removing a piece is a bitwise AND operation with the complement of the desired bit:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust>black_rooks<span style=color:#bbb> </span><span style=color:#666>&amp;=</span><span style=color:#bbb> </span><span style=color:#666>!</span>(<span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>3</span>);<span style=color:#bbb> </span><span style=color:#60a0b0;font-style:italic>// Remove the black rook on d1
+</span></code></pre></div><p>We can check for the presence of a piece using another bitwise AND operation:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>black_rooks<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>(<span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>63</span>)<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#60a0b0;font-style:italic>// There&#39;s a black rook on h8
+</span><span style=color:#60a0b0;font-style:italic></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Since calculating <code>1 &lt;&lt; index</code> will be such a common operation, it makes sense to add a method to <code>Square</code> to do this for us:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Square<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>u64</span>(<span style=color:#666>&amp;</span>self)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span>self.<span style=color:#40a070>0</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>An obvious invariant to be guarded by the board representation is that a square can only be occupied by one piece at a time.
+It follows that all bitboards must have mutually exclusive bits set, which makes it safe to write the following:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>white_pieces: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb>
+</span><span style=color:#bbb>      </span>white_pawns<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>white_knights<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>white_bishops<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>white_rooks<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>white_queens<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>white_king;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>black_pieces: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb>
+</span><span style=color:#bbb>      </span>black_pawns<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>.<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>.<span style=color:#bbb>
+</span></code></pre></div><p>This goes to show how memory efficient bitboards are, since the whole state of the board is encoded with just 12 integers.
+Compare this with an array based approach, which would use a minimum of 64 values to do the same thing.</p>
+<p>With the basic operations outlined above we can define a model of the board that allows us to add/remove pieces and inspect the state of individual squares.
+This will provide the basis for the rest of the engine to query and mutate the state of the game.</p>
+<h3 id=implementing-bitboards>Implementing Bitboards</h3>
+<p>I defined a <code>Board</code> structure to store the 12 piece bitboards:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>struct</span> <span style=color:#0e84b5;font-weight:700>Board</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>pieces: [<span style=color:#902000>u64</span>;<span style=color:#bbb> </span><span style=color:#40a070>12</span>],<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>colours: [<span style=color:#902000>u64</span>;<span style=color:#bbb> </span><span style=color:#40a070>2</span>],<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Additionally, tracking pieces by colour will make it easy to determine the occupancy of all squares, since we can just merge the 2 colour bitboards:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Board<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>occupancy</span>(<span style=color:#666>&amp;</span>self)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.colours[Colour::White]<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>self.colours[Colour::Black]<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>This gives us a new bitboard with the locations of all pieces, making it easy to check if a given square has a piece on it:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Board<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>has_piece_at</span>(<span style=color:#666>&amp;</span>self,<span style=color:#bbb> </span>square: <span style=color:#0e84b5;font-weight:700>Square</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>bool</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.occupancy()<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>square.<span style=color:#902000>u64</span>()<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Determining <em>which</em> piece is more complicated because we can&rsquo;t avoid looping over the piece bitboards:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Board<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>piece_at</span>(<span style=color:#666>&amp;</span>self,<span style=color:#bbb> </span>square: <span style=color:#0e84b5;font-weight:700>Square</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#007020>Option</span><span style=color:#666>&lt;</span>Piece<span style=color:#666>&gt;</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>Piece::pieces().find(<span style=color:#666>|&amp;&amp;</span>piece<span style=color:#666>|</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>self.pieces[piece]<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>square.<span style=color:#902000>u64</span>()<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span>})<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Adding and removing pieces simply follows the bitwise logic described above:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Board<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>put_piece</span>(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>self,<span style=color:#bbb> </span>piece: <span style=color:#0e84b5;font-weight:700>Piece</span>,<span style=color:#bbb> </span>square: <span style=color:#0e84b5;font-weight:700>Square</span>)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.pieces[piece]<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>square.<span style=color:#902000>u64</span>();<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.colours[piece.colour()]<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>square.<span style=color:#902000>u64</span>();<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>remove_piece</span>(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>self,<span style=color:#bbb> </span>square: <span style=color:#0e84b5;font-weight:700>Square</span>)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020>Some</span>(piece)<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>self.piece_at(square)<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>else</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>return</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>};<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.pieces[piece]<span style=color:#bbb> </span><span style=color:#666>&amp;=</span><span style=color:#bbb> </span><span style=color:#666>!</span>square.<span style=color:#902000>u64</span>();<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.colours[piece.colour()]<span style=color:#bbb> </span><span style=color:#666>&amp;=</span><span style=color:#bbb> </span><span style=color:#666>!</span>square.<span style=color:#902000>u64</span>();<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>These few methods provide enough functionality to start working with the board in a meaningful way.
+We&rsquo;ll go on to use this structure as the foundation for move generation.</p>
+<h3 id=the-bigger-picture>The Bigger Picture</h3>
+<p>If you&rsquo;re familiar with <a href=https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation>FEN</a>, you&rsquo;ll know that the board is only part of the story.
+FEN is a format used to describe the state of a game at a single point in time.
+For example, consider the start position as a FEN string:</p>
+<pre tabindex=0><code>                    the                  colour
+                   board                 to move   en-passant square
+                     |                      |      |
+                     |                      |      |
+                     v                      v      v
+rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 &lt;-- move counters
+        ^                         ^            ^
+        |                         |            |
+        |                         |            |
+      black                     white       castling
+      pieces                    pieces       rights
+</code></pre><p>The model we have so far only includes the board, so we&rsquo;re missing a few things:</p>
+<ul>
+<li>Whose turn it is</li>
+<li>Castling rights</li>
+<li>The en-passant square, if any</li>
+<li>The half and full move counters</li>
+</ul>
+<p>I didn&rsquo;t feel like all this belonged inside <code>Board</code> (which FEN sort of indicates), so I created a separate structure to keep it alongside the board, instead:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>struct</span> <span style=color:#0e84b5;font-weight:700>Position</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>board: <span style=color:#0e84b5;font-weight:700>Board</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>colour_to_move: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>castling_rights: <span style=color:#0e84b5;font-weight:700>CastlingRights</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>en_passant_square: <span style=color:#007020>Option</span><span style=color:#666>&lt;</span>Square<span style=color:#666>&gt;</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>half_move_clock: <span style=color:#902000>u8</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>full_move_counter: <span style=color:#902000>u8</span>,<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>This structure reflects the FEN string above.
+I think moving forwards there could be a need to expand upon this and store more information for use in search optimisation (<a href=https://en.wikipedia.org/wiki/Transposition_table>transposition tables</a> and <a href=https://en.wikipedia.org/wiki/Zobrist_hashing>zobrist hashing</a>), but this should be good enough for now.</p>
+<h4 id=castling-rights>Castling Rights</h4>
+<p>The last thing worth mentioning is the <code>CastlingRights</code> type, which stores the sides of the board each colour has the right to castle on:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>struct</span> <span style=color:#0e84b5;font-weight:700>CastlingRights</span>(<span style=color:#902000>u8</span>);<span style=color:#bbb>
+</span></code></pre></div><p>The wrapped <code>u8</code> ranges from 0 to 15 using a combination of the following values:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>enum</span> <span style=color:#0e84b5;font-weight:700>CastlingRight</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>WhiteKing<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>1</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>WhiteQueen<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>2</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>BlackKing<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>4</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>BlackQueen<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>8</span>,<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>When both colours can castle on either side, the castling rights are 15 (1 + 2 + 4 + 8).
+Using powers of two like this, we can work with castling rights in the same way as a bitboard:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>CastlingRights<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>none</span>()<span style=color:#bbb> </span>-&gt; <span style=color:#0e84b5;font-weight:700>Self</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>Self(<span style=color:#40a070>0</span>)<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>has</span>(<span style=color:#666>&amp;</span>self,<span style=color:#bbb> </span>right: <span style=color:#0e84b5;font-weight:700>CastlingRight</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>bool</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.<span style=color:#40a070>0</span><span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>right<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>as</span><span style=color:#bbb> </span><span style=color:#902000>u8</span><span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>add</span>(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>self,<span style=color:#bbb> </span>right: <span style=color:#0e84b5;font-weight:700>CastlingRight</span>)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.<span style=color:#40a070>0</span><span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>right<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>as</span><span style=color:#bbb> </span><span style=color:#902000>u8</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>remove</span>(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>self,<span style=color:#bbb> </span>right: <span style=color:#0e84b5;font-weight:700>CastlingRight</span>)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.<span style=color:#40a070>0</span><span style=color:#bbb> </span><span style=color:#666>&amp;=</span><span style=color:#bbb> </span><span style=color:#666>!</span>(right<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>as</span><span style=color:#bbb> </span><span style=color:#902000>u8</span>);<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>This allows us to write the following:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>rights<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>CastlingRights::none();<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span>rights.add(BlackQueen);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span>assert!(rights.has(BlackQueen));<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span>rights.remove(BlackQueen);<span style=color:#bbb>
+</span></code></pre></div><p>Similarly to bitboards, this is an efficient way to model castling rights because querying and mutating the state with bitwise operations is fast.
+We&rsquo;ll see how the engine uses the structure more meaningfully in a future post, when making and unmaking moves in a <code>Position</code>.</p>
+<h2 id=next-up-move-generation>Next Up: Move Generation</h2>
+<p>This post covered how the engine models game state, which was the first milestone for the project.
+In the next post I&rsquo;ll write about move generation: finding all the available moves in a position.
+This will require expanding on the use of bitboards to calculate which squares are under attack, and we&rsquo;ll see a couple of approaches for effectively testing move generation.</p>
+<p>Until then&mldr; ♟️</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
