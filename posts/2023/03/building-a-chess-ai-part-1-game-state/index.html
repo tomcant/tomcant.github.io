@@ -90,16 +90,16 @@ Having to loop over the array and repeatedly check bounds to ensure pieces don&r
 <h3 id=bitboards>Bitboards</h3>
 <p>A much more efficient approach is to use <a href=https://www.chessprogramming.org/Bitboards>bitboards</a>.
 This takes advantage of the fact that the number of squares on a chessboard and the number of bits in a 64-bit data type are the same, making 64-bit variables a very convenient place to store chess pieces!</p>
-<p>Each bit represents the state of a single square, so that when a bit is set, a piece will be present on the corresponding square.
-Exactly how the bits correspond to the squares is an implementation detail that changes from engine to engine, but I think it&rsquo;s quite common to see the following layout:</p>
-<style>.bitboard{width:95%;margin:1em auto 2em;display:grid;grid-template-columns:repeat(12,1fr)}.bitboard div{aspect-ratio:1;display:flex;justify-content:center;align-items:center;text-align:center;color:inherit}.bitboard .b,.bitboard .w{border:2px #b58863;border-style:solid none}.bitboard .b{background-color:#b58863;color:#f0d9b5}.bitboard .w{background-color:#f0d9b5;color:#b58863}.bitboard .c{font-weight:700}</style>
+<p>Each bit represents the state of one square.
+Exactly how the bits map to each square is an implementation detail that changes from engine to engine, but I think it&rsquo;s common to see the following layout:</p>
+<style>.bitboard{width:95%;margin:1em auto 2em;display:grid;grid-template-columns:repeat(11,1fr)}.bitboard div{aspect-ratio:1;display:flex;justify-content:center;align-items:center;text-align:center;color:inherit}.bitboard .b,.bitboard .w{border:2px #b58863;border-style:solid none}.bitboard .b{background-color:#b58863;color:#f0d9b5}.bitboard .w{background-color:#f0d9b5;color:#b58863}.bitboard .c{font-weight:700}</style>
 <div class=bitboard>
-<div class=c>h8</div><div class=c>g8</div><div class=c>f8</div><div class=c>e8</div><div class=c>d8</div><div class=c></div><div class=c></div><div class=c>e1</div><div class=c>d1</div><div class=c>c1</div><div class=c>b1</div><div class=c>a1</div>
-<div class=b>63</div><div class=w>62</div><div class=b>61</div><div class=w>60</div><div class=b>59</div><div>⋯</div><div>⋯</div><div class=b>4</div><div class=w>3</div><div class=b>2</div><div class=w>1</div><div class=b>0</div>
+<div class=c>h8</div><div class=c>g8</div><div class=c>f8</div><div class=c>e8</div><div class=c>d8</div><div></div><div class=c>e1</div><div class=c>d1</div><div class=c>c1</div><div class=c>b1</div><div class=c>a1</div>
+<div class=b>63</div><div class=w>62</div><div class=b>61</div><div class=w>60</div><div class=b>59</div><div>⋯</div><div class=b>4</div><div class=w>3</div><div class=b>2</div><div class=w>1</div><div class=b>0</div>
 </div>
-<p>It can be confusing to visualise the squares with <code>h8</code> at the beginning, but the benefit is apparent when we consider that this means the <code>a1</code> square is the least significant bit.
-So if there&rsquo;s a 1-bit in the 0th index, then there&rsquo;s a piece on <code>a1</code>, and this feels quite natural.</p>
-<p>It can also be helpful to visualise this as an actual chessboard:</p>
+<p>It&rsquo;s confusing to visualise the squares with <code>h8</code> at the start, but it feels right that <code>a1</code> is the least significant bit.
+This means that if there&rsquo;s a 1-bit in the 0th index, then there&rsquo;s a piece on <code>a1</code>.
+It can also be helpful to visualise this as an actual chessboard:</p>
 <style>.chessboard{width:70%;margin:2em auto 1em;display:grid;grid-template-columns:repeat(9,1fr)}.chessboard div{aspect-ratio:1;display:flex;justify-content:center;align-items:center;text-align:center}.chessboard :nth-child(9n){border-right:2px solid #b58863}.chessboard :nth-child(-n+9){border-top:2px solid #b58863}.chessboard .b{background-color:#b58863;color:#f0d9b5}.chessboard .w{background-color:#f0d9b5;color:#b58863}.chessboard .r{border:2px #b58863;border-style:none solid none none;font-weight:700}.chessboard .f{border:2px #b58863;border-style:solid none none;font-weight:700}</style>
 <div class=chessboard>
 <div class=r>8</div><div class=w>56</div><div class=b>57</div><div class=w>58</div><div class=b>59</div><div class=w>60</div><div class=b>61</div><div class=w>62</div><div class=b>63</div>
@@ -113,7 +113,7 @@ So if there&rsquo;s a 1-bit in the 0th index, then there&rsquo;s a piece on <cod
 <div></div><div class=f>a</div><div class=f>b</div><div class=f>c</div><div class=f>d</div><div class=f>e</div><div class=f>f</div><div class=f>g</div><div class=f>h</div>
 </div>
 <p>The Rust <code>u64</code> unsigned integer type will be perfect for this use case.
-For example, suppose we have a bitboard for the white king on its start square, <code>e1</code>:</p>
+For example, suppose we have a bitboard with the white king on its start square, <code>e1</code>:</p>
 <div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>white_king: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>4</span>;<span style=color:#bbb>
 </span></code></pre></div><p>The value <code>1 &lt;&lt; 4</code> equates to the binary pattern <code>10000</code>, preceded by 59 zeros: a single bit set in the 4th index, which is <code>e1</code>.
 Now consider the white rooks on <code>a1</code> and <code>h1</code>:</p>
