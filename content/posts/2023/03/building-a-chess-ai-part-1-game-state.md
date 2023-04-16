@@ -102,55 +102,73 @@ Having to loop over the array and repeatedly check bounds to ensure pieces don't
 A much more efficient approach is to use [bitboards](https://www.chessprogramming.org/Bitboards).
 This takes advantage of the fact that the number of squares on a chessboard and the number of bits in a 64-bit data type are the same, making 64-bit variables a very convenient place to store chess pieces!
 
-Each bit represents the state of a single square on the board, so when a bit is set, a piece will be present on the corresponding square.
-Exactly how the bits correspond to the squares is an implementation detail that changes from engine to engine, but I think it's quite common to see the following layout:
+Each bit represents the state of one square.
+Exactly how the bits map to each square is an implementation detail that changes from engine to engine, but I think it's common to see the following layout:
 
 <style>
-    .chessboard {
-        margin: 2em auto 1em;
-        width: 70%;
-        display: grid;
-        grid-template-columns: repeat(9, 1fr);
-    }
-    .chessboard div {
-        aspect-ratio: 1;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: inherit;
-    }
-    .chessboard :nth-child(9n) { border-right: 3px solid #e5e7eb; }
-    .chessboard :nth-child(-n+9) { border-top: 3px solid #e5e7eb; }
-    .chessboard .b { background-color: #e5e7eb; }
-    .chessboard .w { background-color: #fff; }
-    .chessboard .r {
-        border: 3px #e5e7eb;
-        border-style: none solid none none;
-        font-weight: bold;
-    }
-    .chessboard .f {
-        border: 3px #e5e7eb;
-        border-style: solid none none;
-        font-weight: bold;
-    }
+  .bitboard {
+    width: 95%;
+    margin: 1em auto 2em;
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+  }
+  .bitboard div {
+    aspect-ratio: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: inherit;
+  }
+  .bitboard .b, .bitboard .w { border: 2px #b58863; border-style: solid none; }
+  .bitboard .b { background-color: #b58863; color: #f0d9b5; }
+  .bitboard .w { background-color: #f0d9b5; color: #b58863; }
+  .bitboard .c { font-weight: bold; }
 </style>
-<div class="chessboard">
-    <div class="r">8</div><div class="w">56</div><div class="b">57</div><div class="w">58</div><div class="b">59</div><div class="w">60</div><div class="b">61</div><div class="w">62</div><div class="b">63</div>
-    <div class="r">7</div><div class="b">48</div><div class="w">49</div><div class="b">50</div><div class="w">51</div><div class="b">52</div><div class="w">53</div><div class="b">54</div><div class="w">55</div>
-    <div class="r">6</div><div class="w">40</div><div class="b">41</div><div class="w">42</div><div class="b">43</div><div class="w">44</div><div class="b">45</div><div class="w">46</div><div class="b">47</div>
-    <div class="r">5</div><div class="b">32</div><div class="w">33</div><div class="b">34</div><div class="w">35</div><div class="b">36</div><div class="w">37</div><div class="b">38</div><div class="w">39</div>
-    <div class="r">4</div><div class="w">24</div><div class="b">25</div><div class="w">26</div><div class="b">27</div><div class="w">28</div><div class="b">29</div><div class="w">30</div><div class="b">31</div>
-    <div class="r">3</div><div class="b">16</div><div class="w">17</div><div class="b">18</div><div class="w">19</div><div class="b">20</div><div class="w">21</div><div class="b">22</div><div class="w">23</div>
-    <div class="r">2</div><div class="w">8</div><div class="b">9</div><div class="w">10</div><div class="b">11</div><div class="w">12</div><div class="b">13</div><div class="w">14</div><div class="b">15</div>
-    <div class="r">1</div><div class="b">0</div><div class="w">1</div><div class="b">2</div><div class="w">3</div><div class="b">4</div><div class="w">5</div><div class="b">6</div><div class="w">7</div>
-    <div></div><div class="f">a</div><div class="f">b</div><div class="f">c</div><div class="f">d</div><div class="f">e</div><div class="f">f</div><div class="f">g</div><div class="f">h</div>
+<div class="bitboard">
+  <div class="c">h8</div><div class="c">g8</div><div class="c">f8</div><div class="c">e8</div><div class="c">d8</div><div></div><div class="c">e1</div><div class="c">d1</div><div class="c">c1</div><div class="c">b1</div><div class="c">a1</div>
+  <div class="b">63</div><div class="w">62</div><div class="b">61</div><div class="w">60</div><div class="b">59</div><div>⋯</div><div class="b">4</div><div class="w">3</div><div class="b">2</div><div class="w">1</div><div class="b">0</div>
 </div>
 
-I chose this layout because it feels most natural, with indices running from 0 to 63, `a1` to `h8`.
-This also matches the way `Square` works, with `Square(0)` being `a1`, etc.
+It's confusing to visualise the squares with `h8` at the start, but it feels right that `a1` is the least significant bit.
+This means that if there's a 1-bit in the 0th index, then there's a piece on `a1`.
+It can also be helpful to visualise this as an actual chessboard:
+
+<style>
+  .chessboard {
+    width: 70%;
+    margin: 2em auto 1em;
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+  }
+  .chessboard div {
+    aspect-ratio: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .chessboard :nth-child(9n) { border-right: 2px solid #b58863; }
+  .chessboard :nth-child(-n+9) { border-top: 2px solid #b58863; }
+  .chessboard .b { background-color: #b58863; color: #f0d9b5; }
+  .chessboard .w { background-color: #f0d9b5; color: #b58863; }
+  .chessboard .r { border: 2px #b58863; border-style: none solid none none; font-weight: bold; }
+  .chessboard .f { border: 2px #b58863; border-style: solid none none; font-weight: bold; }
+</style>
+<div class="chessboard">
+  <div class="r">8</div><div class="w">56</div><div class="b">57</div><div class="w">58</div><div class="b">59</div><div class="w">60</div><div class="b">61</div><div class="w">62</div><div class="b">63</div>
+  <div class="r">7</div><div class="b">48</div><div class="w">49</div><div class="b">50</div><div class="w">51</div><div class="b">52</div><div class="w">53</div><div class="b">54</div><div class="w">55</div>
+  <div class="r">6</div><div class="w">40</div><div class="b">41</div><div class="w">42</div><div class="b">43</div><div class="w">44</div><div class="b">45</div><div class="w">46</div><div class="b">47</div>
+  <div class="r">5</div><div class="b">32</div><div class="w">33</div><div class="b">34</div><div class="w">35</div><div class="b">36</div><div class="w">37</div><div class="b">38</div><div class="w">39</div>
+  <div class="r">4</div><div class="w">24</div><div class="b">25</div><div class="w">26</div><div class="b">27</div><div class="w">28</div><div class="b">29</div><div class="w">30</div><div class="b">31</div>
+  <div class="r">3</div><div class="b">16</div><div class="w">17</div><div class="b">18</div><div class="w">19</div><div class="b">20</div><div class="w">21</div><div class="b">22</div><div class="w">23</div>
+  <div class="r">2</div><div class="w">8</div><div class="b">9</div><div class="w">10</div><div class="b">11</div><div class="w">12</div><div class="b">13</div><div class="w">14</div><div class="b">15</div>
+  <div class="r">1</div><div class="b">0</div><div class="w">1</div><div class="b">2</div><div class="w">3</div><div class="b">4</div><div class="w">5</div><div class="b">6</div><div class="w">7</div>
+  <div></div><div class="f">a</div><div class="f">b</div><div class="f">c</div><div class="f">d</div><div class="f">e</div><div class="f">f</div><div class="f">g</div><div class="f">h</div>
+</div>
 
 The Rust `u64` unsigned integer type will be perfect for this use case.
-For example, suppose we have a bitboard for the white king on its start square, `e1`:
+For example, suppose we have a bitboard with the white king on its start square, `e1`:
 
 ```rust
 let white_king: u64 = 1 << 4;
