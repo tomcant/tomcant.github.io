@@ -1,0 +1,672 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Building a Chess AI, Part 2 – Move Generation &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/css/poole.css>
+<link type=text/css rel=stylesheet href=/css/syntax.css>
+<link type=text/css rel=stylesheet href=/css/hyde.css>
+<link type=text/css rel=stylesheet href=/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Building a Chess AI, Part 2 – Move Generation</h1>
+<time datetime=2023-05-14T00:00:00Z class=post-date>Sun, May 14, 2023</time>
+<p>In my last post <a href=/posts/2023/03/building-a-chess-ai-part-1-game-state/>I wrote about modelling game state</a>, the first milestone of a project I&rsquo;ve been working on to build a chess engine in Rust.
+In this post I&rsquo;m going to write an overview of the second milestone: move generation.</p>
+<link rel=stylesheet href=https://unpkg.com/@chrisoakman/chessboard2@0.4.0/dist/chessboard2.min.css integrity=sha384-MZONbGYADvdl4hLalNF4d+E/6BVdYIty2eSgtkCbjG7iQJAe35a7ujTk1roZIdJ+ crossorigin=anonymous>
+<script src=https://unpkg.com/@chrisoakman/chessboard2@0.4.0/dist/chessboard2.min.js integrity=sha384-zl6zz0W4cEX3M2j9+bQ2hv9af6SF5pTFrnm/blYYjBmqSS3tdJChVrY9nenhLyNg crossorigin=anonymous></script>
+<script>function highlightSquares(c,b){for(var a=0;a<b.length;++a)document.querySelector('#'+c+' [data-square-coord="'+b[a]+'"]').classList.add('square-highlight')}function fadeSquares(c,b){for(var a=0;a<b.length;++a)document.querySelector('#'+c+' [data-square-coord="'+b[a]+'"]').classList.add('square-fade')}function zeroBits(c,a){for(var b=0;b<a.length;++b)document.querySelector('#'+c+' [data-square-coord="'+a[b]+'"]').classList.add('zero-bit');fadeSquares(c,a)}function oneBits(c,a){for(var b=0;b<a.length;++b)document.querySelector('#'+c+' [data-square-coord="'+a[b]+'"]').classList.add('one-bit');highlightSquares(c,a)}</script>
+<style>.board-container-41a68{border-color:#b58863}.chessboard-21da3{width:50%;margin:2em auto}.chessboard-21da3 img{margin:0;z-index:1}.chessboard-21da3 .square-highlight,.chessboard-21da3 .square-fade{position:relative}.chessboard-21da3 .square-highlight:after,.chessboard-21da3 .square-fade:after{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background-color:#2f363d;color:#f0d9b5;opacity:.85}.chessboard-21da3 .square-fade:after{background-color:#fff;color:#2f363d;opacity:.5}.chessboard-21da3 .zero-bit:after{content:"0"}.chessboard-21da3 .one-bit:after{content:"1"}.chessboard-21da3 .zero-bit:after,.chessboard-21da3 .one-bit:after{display:flex;align-items:center;justify-content:center;font-size:smaller}@media(min-width:48em){.chessboard-21da3 .zero-bit:after{font-size:inherit}.chessboard-21da3 .one-bit:after{font-size:inherit}}.chessboard-grid-double{display:grid;grid-template-columns:1fr 1fr;gap:1em 2em;align-items:center;margin:1em 0}.chessboard-grid-double .chessboard-21da3{width:auto;margin:0}.chessboard-grid-quadruple{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.5em;align-items:center;margin:1em 0}@media(min-width:48em){.chessboard-grid-quadruple{gap:1em}}.chessboard-grid-quadruple .chessboard-21da3{width:auto;margin:0;font-size:smaller}.chessboard-bitwise{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:.5em;align-items:center;margin:2em 0}.chessboard-bitwise>div{text-align:center}.chessboard-bitwise .chessboard-21da3{width:auto;margin:0}</style>
+<p>If you&rsquo;re interested in seeing the full code, check out <a href=https://github.com/tomcant/chess-rs>tomcant/chess-rs</a> on GitHub.</p>
+<p>So far we have a few types to represent some of the game&rsquo;s basic concepts: colours, pieces and squares, and a model of the board that uses bitboards to track the locations of pieces.</p>
+<p>The approach I&rsquo;ve taken to generating moves is to calculate a bitboard of all the squares under attack for each of the colour-to-move&rsquo;s pieces, and convert each of these to a list of moves.
+Combining these into one list produces the majority of moves in a position, leaving just a handful of &ldquo;special&rdquo; cases like castling and en-passant.</p>
+<p>The main topics to cover are:</p>
+<ol>
+<li>using bitboards to calculate &ldquo;attack squares&rdquo;,</li>
+<li>handling &ldquo;special&rdquo; cases with bitboards,</li>
+<li>converting bitboards to moves, and</li>
+<li>verifying correctness with <a href=https://www.chessprogramming.org/Perft>perft</a>.</li>
+</ol>
+<h2 id=calculating-attack-squares>Calculating Attack Squares</h2>
+<p>At the heart of the move generator is a simple looking function for calculating attacks:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_attacks</span>(piece: <span style=color:#0e84b5;font-weight:700>Piece</span>,<span style=color:#bbb> </span>square: <span style=color:#0e84b5;font-weight:700>Square</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>piece<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WP<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BP<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_pawn_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WN<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BN<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_knight_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WB<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BB<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_bishop_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WR<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BR<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_rook_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WQ<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BQ<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_bishop_attacks(<span style=color:#666>..</span>.)<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>get_rook_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WK<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BK<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_king_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Given a piece and a square, this returns a bitboard containing all the squares under attack by that piece.
+We can then convert this bitboard into a list of moves and continue with the next piece.</p>
+<h3 id=sliding-piece-attacks>Sliding Piece Attacks</h3>
+<p>Bishops, rooks and queens all slide along their paths for as long as there isn&rsquo;t another piece blocking the way.
+This is different from non-sliding pieces where the squares under attack are always known upfront, and so we require different approaches.</p>
+<p>There are lots of popular methods for calculating sliding piece attacks using bitboards.
+As a starting point I implemented the simplest method I could find: <a href=https://www.chessprogramming.org/Classical_Approach>the classical approach</a>.</p>
+<p>Consider a bishop on <code>c3</code> with no blocking pieces:</p>
+<div id=bishop-attack-rays></div>
+<script>Chessboard2('bishop-attack-rays',{position:{c3:'wB'}}),highlightSquares('bishop-attack-rays',['b4','a5','e5','f6','g7','h8','d4','b2','a1','d2','e1'])</script>
+<p>We can construct a bitboard from the highlighted squares and use it any time we need the attacks for a bishop on <code>c3</code>.
+However, if pieces block the path then we&rsquo;d need to figure out which squares are actually reachable first.
+Take the following position for example:</p>
+<div id=bishop-with-blockers></div>
+<script>Chessboard2('bishop-with-blockers','7r/pppppp1p/5np1/8/8/2B5/8/8')</script>
+<p>We need to determine that <code>g7</code> and <code>h8</code> should be excluded from the bishop&rsquo;s attacks.
+One approach is to iterate over the bishop&rsquo;s path until we hit a piece, but this would be slow because we&rsquo;d be querying the state of the board <em>a lot</em>.</p>
+<p>Instead, if we take the bishop&rsquo;s path and perform a bitwise AND operation with all the pieces on the board, we get the following:</p>
+<div class=chessboard-bitwise>
+<div id=bishop-attack-ray></div>
+<div><strong>AND</strong></div>
+<div id=occupancy></div>
+<div><strong>=</strong></div>
+<div id=bishop-attack-blockers></div>
+</div>
+<script>Chessboard2('bishop-attack-ray'),highlightSquares('bishop-attack-ray',['d4','e5','f6','g7','h8']),Chessboard2('occupancy'),highlightSquares('occupancy',['c3','a7','b7','c7','d7','e7','f6','f7','g6','h7','h8']),Chessboard2('bishop-attack-blockers'),highlightSquares('bishop-attack-blockers',['f6','h8'])</script>
+<p>This tells us where the blocking pieces are.
+Next, we perform bitwise XOR with just the section of path after the first blocking square:</p>
+<div class=chessboard-bitwise>
+<div id=bishop-attack-ray2></div>
+<div><strong>XOR</strong></div>
+<div id=occupancy2></div>
+<div><strong>=</strong></div>
+<div id=bishop-attack-blockers2></div>
+</div>
+<script>Chessboard2('bishop-attack-ray2'),highlightSquares('bishop-attack-ray2',['d4','e5','f6','g7','h8']),Chessboard2('occupancy2'),highlightSquares('occupancy2',['g7','h8']),Chessboard2('bishop-attack-blockers2'),highlightSquares('bishop-attack-blockers2',['d4','e5','f6'])</script>
+<p>This gives the attack squares for the bishop taking into account the pieces that block its path.
+Repeating for each direction yields the complete bitboard of attack squares.</p>
+<p>Here&rsquo;s what it looks like in code:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>enum</span> <span style=color:#0e84b5;font-weight:700>BishopDirection</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>  </span>NW,<span style=color:#bbb> </span>NE,<span style=color:#bbb> </span>SW,<span style=color:#bbb> </span>SE,<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_bishop_attacks</span>(square: <span style=color:#0e84b5;font-weight:700>Square</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>attacks<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>for</span><span style=color:#bbb> </span>direction<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>in</span><span style=color:#bbb> </span>[NW,<span style=color:#bbb> </span>NE,<span style=color:#bbb> </span>SW,<span style=color:#bbb> </span>SE]<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>path<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>BISHOP_ATTACKS[square][direction];<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>blockers<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>path<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>board.occupancy();<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>blockers<span style=color:#bbb> </span><span style=color:#666>==</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#60a0b0;font-style:italic>// No blockers in this direction so
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>            </span><span style=color:#60a0b0;font-style:italic>// add the whole path and move on.
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>            </span>attacks<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>path;<span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>continue</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>first_blocking_square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>direction<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>NW<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>NE<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Square::first(blockers),<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>SW<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>SE<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Square::last(blockers),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>};<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span>attacks<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>path<span style=color:#bbb> </span><span style=color:#666>^</span><span style=color:#bbb> </span>BISHOP_ATTACKS[first_blocking_square][direction];<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>attacks<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Notice the use of <code>BISHOP_ATTACKS</code>, a pre-calculated array of 64 x 4 bitboards indexed by square and direction.
+This is used to look up the squares a bishop can attack on an empty board and means we only have to calculate this once.</p>
+<h4 id=finding-the-first-blocking-square>Finding the first blocking square</h4>
+<p>I want to highlight how the first blocking square calculation works because it&rsquo;s not obvious from the code above.
+When the bishop&rsquo;s path points north-east or north-west, the first blocker is always the first 1-bit in the blockers bitboard, which is just the number of trailing zeros:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Square<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>first</span>(squares: <span style=color:#902000>u64</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#0e84b5;font-weight:700>Self</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>Self(squares.trailing_zeros())<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>first_blocking_square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>direction<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=display:block;width:100%;background-color:#d8d8d8><span style=color:#bbb>    </span>NW<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>NE<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Square::first(blockers),<span style=color:#bbb>
+</span></span><span style=color:#bbb>    </span>SW<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>SE<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Square::last(blockers),<span style=color:#bbb>
+</span><span style=color:#bbb></span>};</code></pre></div>
+<div class=chessboard-grid-double>
+<div id=bishop-attack-ray-blocker-nw></div>
+<div id=bishop-attack-ray-blocker-ne></div>
+</div>
+<p>Conversely, when there are blockers on a south-east or south-west path then the first blocker is always the <em>last</em> 1-bit, so we identify it by the number of <em>leading</em> zeros instead.
+A simple calculation is then used to flip its orientation:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Square<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>last</span>(squares: <span style=color:#902000>u64</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#0e84b5;font-weight:700>Self</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>Self(<span style=color:#40a070>63</span><span style=color:#bbb> </span><span style=color:#666>-</span><span style=color:#bbb> </span>squares.leading_zeros())<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>first_blocking_square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>direction<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>NW<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>NE<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Square::first(blockers),<span style=color:#bbb>
+</span><span style=display:block;width:100%;background-color:#d8d8d8><span style=color:#bbb>    </span>SW<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>SE<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Square::last(blockers),<span style=color:#bbb>
+</span></span><span style=color:#bbb></span>};</code></pre></div>
+<div class=chessboard-grid-double>
+<div id=bishop-attack-ray-blocker-sw></div>
+<div id=bishop-attack-ray-blocker-se></div>
+</div>
+<script>Chessboard2('bishop-attack-ray-blocker-nw',{position:{f3:'bB'}}),oneBits('bishop-attack-ray-blocker-nw',['c6','a8']),zeroBits('bishop-attack-ray-blocker-nw',['a6','b6','a5','b5','c5','d5','e5','f5','g5','h5','a4','b4','c4','d4','e4','f4','g4','h4','a3','b3','c3','d3','e3','f3','g3','h3','a2','b2','c2','d2','e2','f2','g2','h2','a1','b1','c1','d1','e1','f1','g1','h1']),fadeSquares('bishop-attack-ray-blocker-nw',['b8','c8','d8','e8','f8','g8','h8','a7','b7','c7','d7','e7','f7','g7','h7','d6','e6','f6','g6','h6']),Chessboard2('bishop-attack-ray-blocker-ne',{position:{c3:'bB'}}),oneBits('bishop-attack-ray-blocker-ne',['f6','h8']),zeroBits('bishop-attack-ray-blocker-ne',['a6','b6','c6','d6','e6','a5','b5','c5','d5','e5','f5','g5','h5','a4','b4','c4','d4','e4','f4','g4','h4','a3','b3','c3','d3','e3','f3','g3','h3','a2','b2','c2','d2','e2','f2','g2','h2','a1','b1','c1','d1','e1','f1','g1','h1']),fadeSquares('bishop-attack-ray-blocker-ne',['a8','b8','c8','d8','e8','f8','g8','a7','b7','c7','d7','e7','f7','g7','h7','g6','h6']),Chessboard2('bishop-attack-ray-blocker-sw',{position:{f6:'bB'}}),oneBits('bishop-attack-ray-blocker-sw',['c3','a1']),zeroBits('bishop-attack-ray-blocker-sw',['a8','b8','c8','d8','e8','f8','g8','h8','a7','b7','c7','d7','e7','f7','g7','h7','a6','b6','c6','d6','e6','f6','g6','h6','a5','b5','c5','d5','e5','f5','g5','h5','a4','b4','c4','d4','e4','f4','g4','h4','d3','e3','f3','g3','h3']),fadeSquares('bishop-attack-ray-blocker-sw',['a3','b3','a2','b2','c2','d2','e2','f2','g2','h2','b1','c1','d1','e1','f1','g1','h1']),Chessboard2('bishop-attack-ray-blocker-se',{position:{c6:'bB'}}),oneBits('bishop-attack-ray-blocker-se',['f3','h1']),zeroBits('bishop-attack-ray-blocker-se',['a8','b8','c8','d8','e8','f8','g8','h8','a7','b7','c7','d7','e7','f7','g7','h7','a6','b6','c6','d6','e6','f6','g6','h6','a5','b5','c5','d5','e5','f5','g5','h5','a4','b4','c4','d4','e4','f4','g4','h4','a3','b3','c3','d3','e3']),fadeSquares('bishop-attack-ray-blocker-se',['g3','h3','a2','b2','c2','d2','e2','f2','g2','h2','a1','b1','c1','d1','e1','f1','g1'])</script>
+<p>The engine uses the same logic for generating rook attacks, and by combining this and bishop attacks together we get queen attacks.</p>
+<p>This is the simplest method for calculating sliding piece attacks.
+There are <a href=https://www.chessprogramming.org/Sliding_Piece_Attacks>several much more efficient methods</a>, but I wanted to keep things simple to start with.</p>
+<h3 id=non-sliding-piece-attacks>Non-sliding Piece Attacks</h3>
+<p>In contrast, pawns, knights and kings only attack a fixed set of their surrounding squares, and determining which ones is much easier because we don&rsquo;t have to deal with blocking pieces.</p>
+<p>We can use something like this to generate a bitboard of squares attacked by the king:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>king_attacks: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb>
+</span><span style=color:#bbb>      </span>king_square<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>8</span><span style=color:#bbb>  </span><span style=color:#60a0b0;font-style:italic>// north
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>king_square<span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>8</span><span style=color:#bbb>  </span><span style=color:#60a0b0;font-style:italic>// south
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>king_square<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>1</span><span style=color:#bbb>  </span><span style=color:#60a0b0;font-style:italic>// east
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>king_square<span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>1</span><span style=color:#bbb>  </span><span style=color:#60a0b0;font-style:italic>// west
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>king_square<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>7</span><span style=color:#bbb>  </span><span style=color:#60a0b0;font-style:italic>// north-west
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>king_square<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>9</span><span style=color:#bbb>  </span><span style=color:#60a0b0;font-style:italic>// north-east
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>king_square<span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>7</span><span style=color:#bbb>  </span><span style=color:#60a0b0;font-style:italic>// south-east
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>king_square<span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>9</span>;<span style=color:#bbb> </span><span style=color:#60a0b0;font-style:italic>// south-west
+</span></code></pre></div><p>Bear in mind that left-shifting moves a square towards the top of the board and right-shifting moves it towards the bottom:</p>
+<style>#king-attacks .chessboard-21da3{width:80%}@media(min-width:48em){#king-attacks .chessboard-21da3{width:65%}}#king-attacks .chessboard-21da3 .square-highlight:after{font-size:smaller;white-space:nowrap}#king-attacks .chessboard-21da3 .square-highlight[data-square-coord=c6]:after{content:"<< 7"}#king-attacks .chessboard-21da3 .square-highlight[data-square-coord=d6]:after{content:"<< 8"}#king-attacks .chessboard-21da3 .square-highlight[data-square-coord=e6]:after{content:"<< 9"}#king-attacks .chessboard-21da3 .square-highlight[data-square-coord=e5]:after{content:"<< 1"}#king-attacks .chessboard-21da3 .square-highlight[data-square-coord=c4]:after{content:">> 9"}#king-attacks .chessboard-21da3 .square-highlight[data-square-coord=d4]:after{content:">> 8"}#king-attacks .chessboard-21da3 .square-highlight[data-square-coord=e4]:after{content:">> 7"}#king-attacks .chessboard-21da3 .square-highlight[data-square-coord=c5]:after{content:">> 1"}#king-attacks-edge-left .chessboard-21da3 .square-highlight:after,#king-attacks-edge-right .chessboard-21da3 .square-highlight:after{font-size:.65em;white-space:nowrap}#king-attacks-edge-left .chessboard-21da3 .square-highlight[data-square-coord=h2]:after{content:">>9"}#king-attacks-edge-left .chessboard-21da3 .square-highlight[data-square-coord=h3]:after{content:">>1"}#king-attacks-edge-left .chessboard-21da3 .square-highlight[data-square-coord=h4]:after{content:"<<7"}#king-attacks-edge-right .chessboard-21da3 .square-highlight[data-square-coord=a4]:after{content:">>7"}#king-attacks-edge-right .chessboard-21da3 .square-highlight[data-square-coord=a5]:after{content:"<<1"}#king-attacks-edge-right .chessboard-21da3 .square-highlight[data-square-coord=a6]:after{content:"<<9"}@media(min-width:48em){#king-attacks-edge-left .chessboard-21da3 .square-highlight:after,#king-attacks-edge-right .chessboard-21da3 .square-highlight:after{font-size:smaller;white-space:nowrap}#king-attacks-edge-left .chessboard-21da3 .square-highlight[data-square-coord=h2]:after{content:">> 9"}#king-attacks-edge-left .chessboard-21da3 .square-highlight[data-square-coord=h3]:after{content:">> 1"}#king-attacks-edge-left .chessboard-21da3 .square-highlight[data-square-coord=h4]:after{content:"<< 7"}#king-attacks-edge-right .chessboard-21da3 .square-highlight[data-square-coord=a4]:after{content:">> 7"}#king-attacks-edge-right .chessboard-21da3 .square-highlight[data-square-coord=a5]:after{content:"<< 1"}#king-attacks-edge-right .chessboard-21da3 .square-highlight[data-square-coord=a6]:after{content:"<< 9"}}#king-attacks .chessboard-21da3 .square-highlight:after,#king-attacks-edge-left .chessboard-21da3 .square-highlight:after,#king-attacks-edge-right .chessboard-21da3 .square-highlight:after{display:flex;align-items:center;justify-content:center;font-size:smaller}</style>
+<div id=king-attacks></div>
+<script>Chessboard2('king-attacks',{position:{d5:'wK'}}),highlightSquares('king-attacks',['c4','d4','e4','c5','e5','c6','d6','e6'])</script>
+<p>By putting this calculation in a loop we can create a bitboard of king attacks for every square.
+However, we have to be careful when the king is not in the middle of the board.
+Consider what might happen if the king was on the edge:</p>
+<div class=chessboard-grid-double>
+<div id=king-attacks-edge-left></div>
+<div id=king-attacks-edge-right></div>
+</div>
+<script>Chessboard2('king-attacks-edge-left',{position:{a4:'wK'}}),Chessboard2('king-attacks-edge-right',{position:{h4:'wK'}}),highlightSquares('king-attacks-edge-left',['a5','b5','b4','b3','a3','h2','h3','h4']),highlightSquares('king-attacks-edge-right',['h5','g5','g4','g3','h3','a4','a5','a6'])</script>
+<p>It looks like the king attacks several squares on the other side of the board, but this is of course not true.
+We can avoid pieces wrapping around the edges by applying a bit-mask to the king square before shifting it:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>const</span><span style=color:#bbb> </span>NOT_FILE_A: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#666>!</span><span style=color:#40a070>0x0101_0101_0101_0101</span>;<span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>const</span><span style=color:#bbb> </span>NOT_FILE_H: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#666>!</span><span style=color:#40a070>0x8080_8080_8080_8080</span>;<span style=color:#bbb>
+</span></code></pre></div><div id=file-masks class=chessboard-grid-double>
+<div style=text-align:center><code>NOT_FILE_A</code> mask</div>
+<div style=text-align:center><code>NOT_FILE_H</code> mask</div>
+<div id=not-file-a-mask></div>
+<div id=not-file-h-mask></div>
+</div>
+<script>Chessboard2('not-file-a-mask'),zeroBits('not-file-a-mask',['a8','a7','a6','a5','a4','a3','a2','a1']),oneBits('not-file-a-mask',['b8','c8','d8','e8','f8','g8','h8','b7','c7','d7','e7','f7','g7','h7','b6','c6','d6','e6','f6','g6','h6','b5','c5','d5','e5','f5','g5','h5','b4','c4','d4','e4','f4','g4','h4','b3','c3','d3','e3','f3','g3','h3','b2','c2','d2','e2','f2','g2','h2','b1','c1','d1','e1','f1','g1','h1']),Chessboard2('not-file-h-mask'),zeroBits('not-file-h-mask',['h8','h7','h6','h5','h4','h3','h2','h1']),oneBits('not-file-h-mask',['a8','b8','c8','d8','e8','f8','g8','a7','b7','c7','d7','e7','f7','g7','a6','b6','c6','d6','e6','f6','g6','a5','b5','c5','d5','e5','f5','g5','a4','b4','c4','d4','e4','f4','g4','a3','b3','c3','d3','e3','f3','g3','a2','b2','c2','d2','e2','f2','g2','a1','b1','c1','d1','e1','f1','g1'])</script>
+<p>Now, when applying a shift that moves the king towards the left edge we should first mask it with <code>NOT_FILE_A</code>.
+Similarly, we mask it with <code>NOT_FILE_H</code> when shifting towards the right edge.</p>
+<p>Here&rsquo;s how the logic above is modified to use these masks and populate a lookup table:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>KING_ATTACKS<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>[<span style=color:#40a070>0</span>;<span style=color:#bbb> </span><span style=color:#40a070>64</span>];<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>for</span><span style=color:#bbb> </span>square_index<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>in</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#666>..</span><span style=color:#40a070>64</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>1</span><span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span>square_index;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>KING_ATTACKS[square_index]<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb>
+</span><span style=color:#bbb>          </span>square<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>8</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>|</span><span style=color:#bbb> </span>square<span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>8</span><span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>|</span><span style=color:#bbb> </span>(square<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>NOT_FILE_H)<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>1</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>|</span><span style=color:#bbb> </span>(square<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>NOT_FILE_A)<span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>1</span><span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>|</span><span style=color:#bbb> </span>(square<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>NOT_FILE_A)<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>7</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>|</span><span style=color:#bbb> </span>(square<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>NOT_FILE_H)<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>9</span><span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>|</span><span style=color:#bbb> </span>(square<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>NOT_FILE_H)<span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>7</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>|</span><span style=color:#bbb> </span>(square<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>NOT_FILE_A)<span style=color:#bbb> </span><span style=color:#666>&gt;&gt;</span><span style=color:#bbb> </span><span style=color:#40a070>9</span>;<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Notice that we don&rsquo;t need a mask when shifting by 8 bits.
+This is because wrapping around the top or bottom edges of the board doesn&rsquo;t actually occur with this bitboard layout.
+Right-shifting the <code>e1</code> square by 8 simply means the bit disappears and no wrapping occurs.</p>
+<p>We can now trivially write a function for finding king attacks:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_king_attacks</span>(square: <span style=color:#0e84b5;font-weight:700>Square</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>KING_ATTACKS[square]<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Pawn and knight attack tables are mostly the same, except with different bitwise shifts and masks.
+Check out the source to see <a href=https://github.com/tomcant/chess-rs/blob/04aea5c0b9423ffcabb676f35bc72c6970c7111b/src/movegen/attacks.rs#L126>how knight attacks are calculated</a>, for example.</p>
+<p>At the beginning of this section we saw the <code>get_attacks()</code> function, which lives at the heart of the move generator.
+Here it is again:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_attacks</span>(piece: <span style=color:#0e84b5;font-weight:700>Piece</span>,<span style=color:#bbb> </span>square: <span style=color:#0e84b5;font-weight:700>Square</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>piece<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WP<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BP<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_pawn_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WN<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BN<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_knight_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WB<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BB<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_bishop_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WR<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BR<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_rook_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WQ<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BQ<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_bishop_attacks(<span style=color:#666>..</span>.)<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>get_rook_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>WK<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>BK<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_king_attacks(<span style=color:#666>..</span>.),<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>With the methods described above we can implement all the &ldquo;piece attack&rdquo; functions and this gets us most of the way to generating all the moves in a position.</p>
+<h2 id=other-types-of-move>Other types of move</h2>
+<p>There&rsquo;s a few types of move that require a little more than just the attack squares to find:</p>
+<ul>
+<li>pawn advances,</li>
+<li>pawn promotions,</li>
+<li>en-passant captures, and</li>
+<li>castling.</li>
+</ul>
+<h3 id=pawn-advances>Pawn advances</h3>
+<p>Depending on which colour is advancing, the pawn&rsquo;s square index shifts by +/– 8:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Square<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>advance</span>(<span style=color:#666>&amp;</span>self,<span style=color:#bbb> </span>colour: <span style=color:#0e84b5;font-weight:700>Colour</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#0e84b5;font-weight:700>Self</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>colour<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>White<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Self(self.<span style=color:#40a070>0</span><span style=color:#bbb> </span><span style=color:#666>+</span><span style=color:#bbb> </span><span style=color:#40a070>8</span>),<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>Black<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>Self(self.<span style=color:#40a070>0</span><span style=color:#bbb> </span><span style=color:#666>-</span><span style=color:#bbb> </span><span style=color:#40a070>8</span>),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Expanding on this, given a square and a colour, the following function checks if the square one ahead is empty.
+If the square is on the pawn&rsquo;s start rank and the square one ahead is empty, it also checks the square two ahead.
+The result is a bitboard with at most two 1-bits.</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_pawn_advances</span>(square: <span style=color:#0e84b5;font-weight:700>Square</span>,<span style=color:#bbb> </span>colour: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>one_ahead<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>square.advance(colour);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>board.has_piece_at(one_ahead)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>return</span><span style=color:#bbb> </span><span style=color:#40a070>0</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>square.rank()<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span>PAWN_START_RANKS[colour]<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>return</span><span style=color:#bbb> </span>one_ahead.<span style=color:#902000>u64</span>();<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>two_ahead<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>one_ahead.advance(colour);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>board.has_piece_at(two_ahead)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>return</span><span style=color:#bbb> </span>one_ahead.<span style=color:#902000>u64</span>();<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>one_ahead.<span style=color:#902000>u64</span>()<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>two_ahead.<span style=color:#902000>u64</span>()<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Since the function produces a bitboard we can just merge it with the attacks bitboard for the pawn to leverage the behaviour of converting the bitboard to moves later.</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>to_squares<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>get_attacks(piece,<span style=color:#bbb> </span>from_square,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>piece.is_pawn()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>to_squares<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>get_pawn_advances(from_square,<span style=color:#bbb> </span>colour_to_move,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><div class=chessboard-bitwise>
+<div id=pawn-attacks></div>
+<div><strong>OR</strong></div>
+<div id=pawn-advances2></div>
+<div><strong>=</strong></div>
+<div id=pawn-attacks-with-advances></div>
+</div>
+<script>Chessboard2('pawn-attacks',{position:{d2:'wP'}}),highlightSquares('pawn-attacks',['c3','e3']),Chessboard2('pawn-advances2',{position:{d2:'wP'}}),highlightSquares('pawn-advances2',['d3','d4']),Chessboard2('pawn-attacks-with-advances',{position:{d2:'wP'}}),highlightSquares('pawn-attacks-with-advances',['c3','e3','d3','d4'])</script>
+<h3 id=pawn-promotions>Pawn promotions</h3>
+<p>If a pawn advance would move the pawn to the 1st or 8th ranks then there are four moves available, one for each promotion piece.
+Checking if a square is on the back rank is a simple bitwise AND operation:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>const</span><span style=color:#bbb> </span>BACK_RANKS: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>0xFF00_0000_0000_00FF</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Square<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>is_back_rank</span>(<span style=color:#666>&amp;</span>self)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>bool</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>*</span>self<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>BACK_RANKS<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Now, when converting a pawn&rsquo;s bitboard of available squares into a list of moves, we can determine whether the four promotion moves should be added:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>for</span><span style=color:#bbb> </span>to_square<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>in</span><span style=color:#bbb> </span>to_squares<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#60a0b0;font-style:italic>// ...
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>piece.is_pawn()<span style=color:#bbb> </span><span style=color:#666>&amp;&amp;</span><span style=color:#bbb> </span>to_square.is_back_rank()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>moves.push(<span style=color:#666>..</span>.);<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#60a0b0;font-style:italic>// ...
+</span><span style=color:#60a0b0;font-style:italic></span>}<span style=color:#bbb>
+</span></code></pre></div><h3 id=en-passant-captures>En-passant captures</h3>
+<p>Recall that the <code>Position</code> structure has an <code>en_passant_square</code> property.
+This gets set when applying a double pawn advance and reset when any other move occurs.
+En-passant is only possible if the property is set <em>and</em> an opponent pawn attacks that square.
+We can see if this is the case by finding the pawn attacks from the perspective of the en-passant square and checking for any overlap with the colour-to-move&rsquo;s pawns:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_en_passant_attacks</span>(<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>en_passant_square: <span style=color:#0e84b5;font-weight:700>Square</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>colour: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span><span style=color:#bbb>
+</span><span style=color:#bbb></span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>get_pawn_attacks(en_passant_square,<span style=color:#bbb> </span>colour.flip(),<span style=color:#bbb> </span>board)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>board.pieces(Piece::pawn(colour))<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>We&rsquo;ll see how to convert the result of this function to a list of moves later.</p>
+<h3 id=castling>Castling</h3>
+<p>The last type of <em>special</em> move is castling.
+The colour-to-move is allowed to castle if:</p>
+<ol>
+<li>the king and rook have not moved from their start squares,</li>
+<li>the squares between the king and rook are not occupied,</li>
+<li>the square the king will pass through is not attacked, and</li>
+<li>the colour-to-move is not in check.</li>
+</ol>
+<h4 id=1-the-king-and-rook-have-not-moved-from-their-start-squares>1. The king and rook have not moved from their start squares</h4>
+<p>The <code>Position</code> structure has a <code>castling_rights</code> property.
+Starting from a value that indicates full rights to castle, this property is updated to reflect which rights are lost as the pieces move:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Position<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>do_move</span>(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>self,<span style=color:#bbb> </span>mv: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Move</span>)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>piece<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>self.board.piece_at(mv.from);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>piece.is_king()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>self.castling_rights<span style=color:#bbb>
+</span><span style=color:#bbb>                </span>.remove_for_colour(self.colour_to_move);<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#60a0b0;font-style:italic>// Maybe a rook left its start square?
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>mv.from.is_corner()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>self.castling_rights<span style=color:#bbb>
+</span><span style=color:#bbb>                </span>.remove_for_square(mv.from);<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#60a0b0;font-style:italic>// Maybe a rook was captured?
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>mv.to.is_corner()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>self.castling_rights<span style=color:#bbb>
+</span><span style=color:#bbb>                </span>.remove_for_square(mv.to);<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#60a0b0;font-style:italic>// ...
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><h4 id=2-the-squares-between-the-king-and-rook-are-not-occupied>2. The squares between the king and rook are not occupied</h4>
+<p>The squares to check depend on which colour is castling and in which direction:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>const</span><span style=color:#bbb> </span>WHITE_KING_SIDE_PATH: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span>F1<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>G1;<span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>const</span><span style=color:#bbb> </span>WHITE_QUEEN_SIDE_PATH: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span>B1<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>C1<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>D1;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>const</span><span style=color:#bbb> </span>BLACK_KING_SIDE_PATH: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span>F8<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>G8;<span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>const</span><span style=color:#bbb> </span>BLACK_QUEEN_SIDE_PATH: <span style=color:#902000>u64</span> <span style=color:#666>=</span><span style=color:#bbb> </span>B8<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>C8<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>D8;<span style=color:#bbb>
+</span></code></pre></div><p>With these constants, we can use familiar bitwise logic to determine if there are pieces on these squares:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Board<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>has_occupancy_at</span>(<span style=color:#666>&amp;</span>self,<span style=color:#bbb> </span>squares: <span style=color:#902000>u64</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>bool</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>self.occupancy()<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>squares<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><h4 id=3-the-square-the-king-will-pass-through-is-not-attacked>3. The square the king will pass through is not attacked</h4>
+<p>The king can&rsquo;t castle <em>through</em> check, so we need to determine if any of the opponent&rsquo;s pieces attack the square next to the king.
+For example, black may still have the right to castle in the following position, but it would not be legal because the white bishop on <code>c5</code> blocks it:</p>
+<div id=cannot-castle-through-check></div>
+<script>Chessboard2('cannot-castle-through-check',{position:{h8:'bR',c5:'wB',e8:'bK'}})</script>
+<p>In this scenario, if we calculate the attacks for a bishop on <code>f8</code>, we would find an overlap with the <code>c5</code> square:</p>
+<div id=cannot-castle-through-check-bishop-attacks></div>
+<script>Chessboard2('cannot-castle-through-check-bishop-attacks',{position:{h8:'bR',c5:'wB',f8:'wB',e8:'bK'}}),highlightSquares('cannot-castle-through-check-bishop-attacks',['e7','d6','c5','b4','a3','g7','h6'])</script>
+<p>This must mean the bishop on <code>c5</code> attacks <code>f8</code> and black can&rsquo;t castle.
+We can use this idea to write a function that takes a square and calculates a bitboard of all its attacking pieces:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_attackers</span>(square: <span style=color:#0e84b5;font-weight:700>Square</span>,<span style=color:#bbb> </span>colour: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>bishop_attacks<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>get_bishop_attacks(<span style=color:#666>..</span>.);<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>rook_attacks<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>get_rook_attacks(<span style=color:#666>..</span>.);<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>queen_attacks<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>bishop_attacks<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#bbb> </span>rook_attacks;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>      </span>(board.pieces(Piece::pawn(colour))<span style=color:#bbb>   </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>get_pawn_attacks(<span style=color:#666>..</span>.))<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>(board.pieces(Piece::knight(colour))<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>get_knight_attacks(<span style=color:#666>..</span>.))<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>(board.pieces(Piece::bishop(colour))<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>bishop_attacks)<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>(board.pieces(Piece::rook(colour))<span style=color:#bbb>   </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>rook_attacks)<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>(board.pieces(Piece::queen(colour))<span style=color:#bbb>  </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>queen_attacks)<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#666>|</span><span style=color:#bbb> </span>(board.pieces(Piece::king(colour))<span style=color:#bbb>   </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>get_king_attacks(<span style=color:#666>..</span>.))<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Finally, we can use this to check if a square is attacked by a given colour:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>is_attacked</span>(square: <span style=color:#0e84b5;font-weight:700>Square</span>,<span style=color:#bbb> </span>colour: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>bool</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>get_attackers(square,<span style=color:#bbb> </span>colour,<span style=color:#bbb> </span>board)<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><h4 id=4-the-colour-to-move-is-not-in-check>4. The colour-to-move is not in check</h4>
+<p>This simply reuses the <code>is_attacked()</code> function to see if the king square is attacked:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>is_in_check</span>(colour: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>bool</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>king_square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>Square::first(board.pieces(Piece::king(colour)));<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>is_attacked(king_square,<span style=color:#bbb> </span>colour.flip(),<span style=color:#bbb> </span>board)<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>All that&rsquo;s left to do is to put these rules into a function that returns a bitboard of squares the king can move to when castling:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_castling</span>(rights: <span style=color:#0e84b5;font-weight:700>CastlingRights</span>,<span style=color:#bbb> </span>colour: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>is_in_check(colour,<span style=color:#bbb> </span>board)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>return</span><span style=color:#bbb> </span><span style=color:#40a070>0</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>colour<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>White<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_white_castling(rights,<span style=color:#bbb> </span>board),<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>Black<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>get_black_castling(rights,<span style=color:#bbb> </span>board),<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_white_castling</span>(rights: <span style=color:#0e84b5;font-weight:700>CastlingRights</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>white_castling<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>rights.has(WhiteKing)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>&amp;&amp;</span><span style=color:#bbb> </span><span style=color:#666>!</span>board.has_occupancy_at(WHITE_KING_SIDE_PATH)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>&amp;&amp;</span><span style=color:#bbb> </span><span style=color:#666>!</span>is_attacked(F1,<span style=color:#bbb> </span>Black,<span style=color:#bbb> </span>board)<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>white_castling<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>G1;<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>rights.has(WhiteQueen)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>&amp;&amp;</span><span style=color:#bbb> </span><span style=color:#666>!</span>board.has_occupancy_at(WHITE_QUEEN_SIDE_PATH)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>&amp;&amp;</span><span style=color:#bbb> </span><span style=color:#666>!</span>is_attacked(D1,<span style=color:#bbb> </span>Black,<span style=color:#bbb> </span>board)<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>white_castling<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>C1;<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>white_castling<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>get_black_castling</span>(rights: <span style=color:#0e84b5;font-weight:700>CastlingRights</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u64</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#60a0b0;font-style:italic>// ...
+</span><span style=color:#60a0b0;font-style:italic></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Similarly to pawn advances, the resultant bitboard for castling moves can be merged with the attack squares for the king:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>to_squares<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>get_attacks(piece,<span style=color:#bbb> </span>from_square,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>piece.is_king()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>to_squares<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>get_castling(pos.castling_rights,<span style=color:#bbb> </span>colour_to_move,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><div class=chessboard-bitwise>
+<div id=king-attacks-2></div>
+<div><strong>OR</strong></div>
+<div id=king-castling></div>
+<div><strong>=</strong></div>
+<div id=king-attacks-with-castling></div>
+</div>
+<script>Chessboard2('king-attacks-2',{position:{a1:'wR',e1:'wK',h1:'wR'}}),highlightSquares('king-attacks-2',['d1','d2','e2','f2','f1']),Chessboard2('king-castling',{position:{a1:'wR',e1:'wK',h1:'wR'}}),highlightSquares('king-castling',['c1','g1']),Chessboard2('king-attacks-with-castling',{position:{a1:'wR',e1:'wK',h1:'wR'}}),highlightSquares('king-attacks-with-castling',['d1','d2','e2','f2','f1','c1','g1'])</script>
+<h2 id=converting-bitboards-to-moves>Converting Bitboards to Moves</h2>
+<p>By this point we can generate a bitboard containing all the available squares for any piece on the board.
+Now we just need to convert these bitboards into a list of moves and we&rsquo;re done!</p>
+<p>Suppose we have the following bitboard for the bishop&rsquo;s available moves:</p>
+<div id=bitboard-iteration-1></div>
+<script>Chessboard2('bitboard-iteration-1',{position:{c3:'wB'}}),oneBits('bitboard-iteration-1',['d4','e5','f6','g7','h8'])</script>
+<p>A specialised <code>Square</code> constructor allows me to get the first square in the bitboard and unset its corresponding bit:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>impl</span><span style=color:#bbb> </span>Square<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>next</span>(squares: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>mut</span><span style=color:#bbb> </span><span style=color:#902000>u64</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#0e84b5;font-weight:700>Self</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>Self::first(<span style=color:#666>*</span>squares);<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>*</span>squares<span style=color:#bbb> </span><span style=color:#666>^=</span><span style=color:#bbb> </span>square;<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>square<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>I wouldn&rsquo;t usually be a fan of such an impurity*, but I&rsquo;ve found this to be extremely useful for iterating over all the 1-bits in a loop:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>moves<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>vec![];<span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>to_squares<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#666>..</span>.;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>while</span><span style=color:#bbb> </span>to_squares<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>to_square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>Square::next(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>to_squares);<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>moves.push(Move::new(from_square,<span style=color:#bbb> </span>to_square));<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Of course, this isn&rsquo;t only used to convert bitboards to moves.
+This technique can be used wherever there&rsquo;s a need to iterate over a bitboard, as we&rsquo;ll see below&mldr;</p>
+<p><small>* Perhaps the only saving grace is that at least Rust makes clear what&rsquo;s going on with its <code>&mut</code> notation.</small></p>
+<h2 id=putting-everything-together>Putting Everything Together</h2>
+<p>For completeness, here&rsquo;s the whole move generation function:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>generate_moves</span>(pos: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Position</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#007020>Vec</span><span style=color:#666>&lt;</span>Move<span style=color:#666>&gt;</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>moves<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>vec![];<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>board<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>pos.board;<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>colour<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>pos.colour_to_move;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>for</span><span style=color:#bbb> </span>piece<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>in</span><span style=color:#bbb> </span>Piece::pieces_by_colour(colour)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>pieces<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>board.pieces(piece);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>while</span><span style=color:#bbb> </span>pieces<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>from_square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>Square::next(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>pieces);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>to_squares<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#666>!</span>board.pieces_by_colour(colour)<span style=color:#bbb>
+</span><span style=color:#bbb>                </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span>get_attacks(piece,<span style=color:#bbb> </span>from_square,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>piece.is_pawn()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>                </span>to_squares<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>get_pawn_advances(from_square,<span style=color:#bbb> </span>colour,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>}<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>else</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>piece.is_king()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>                </span>to_squares<span style=color:#bbb> </span><span style=color:#666>|=</span><span style=color:#bbb> </span>get_castling(pos.castling_rights,<span style=color:#bbb> </span>colour,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>while</span><span style=color:#bbb> </span>to_squares<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>                </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>to_square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>Square::next(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>to_squares);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>                </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>piece.is_pawn()<span style=color:#bbb> </span><span style=color:#666>&amp;&amp;</span><span style=color:#bbb> </span>to_square.is_back_rank()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>                    </span><span style=color:#007020;font-weight:700>for</span><span style=color:#bbb> </span>piece<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>in</span><span style=color:#bbb> </span>Piece::promotions(colour)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>                        </span>moves.push(<span style=color:#bbb>
+</span><span style=color:#bbb>                            </span>Move::promotion(from_square,<span style=color:#bbb> </span>to_square,<span style=color:#bbb> </span>piece)<span style=color:#bbb>
+</span><span style=color:#bbb>                        </span>);<span style=color:#bbb>
+</span><span style=color:#bbb>                    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>                    </span><span style=color:#007020;font-weight:700>continue</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>                </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>                </span>moves.push(Move::new(from_square,<span style=color:#bbb> </span>to_square));<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020>Some</span>(en_passant_square)<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>pos.en_passant_square<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>from_squares<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb>
+</span><span style=color:#bbb>            </span>get_en_passant_attacks(en_passant_square,<span style=color:#bbb> </span>colour,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>while</span><span style=color:#bbb> </span>from_squares<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>from_square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>Square::next(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>from_squares);<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>moves.push(Move::new(from_square,<span style=color:#bbb> </span>en_passant_square));<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>moves<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><h2 id=verifying-correctness>Verifying Correctness</h2>
+<p>Writing a move generator has been one of the most error-prone tasks I&rsquo;ve worked on.
+With so many nuances to the rules it can be tricky to implement a completely bug-free program, so having a reliable test suite is crucial.</p>
+<p>Besides having a suite of TDD-style unit tests still hanging around from the early phases of development, my general approach to testing has been to rely on <a href=https://www.chessprogramming.org/Perft>perft</a>, a method used to give an indication of correctness for chess move generators.</p>
+<p>The basic idea is to compare the number of generated moves with the known correct value for a given position.
+For example, there are 20 moves in the start position for white, and for each of those there are 20 replies for a total of 400 moves after 2 turns.
+The following table shows the number of possible moves as the number of turns increases:</p>
+<table>
+<thead>
+<tr>
+<th style=text-align:center>Depth</th>
+<th style=text-align:left>Move count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style=text-align:center>1</td>
+<td style=text-align:left>20</td>
+</tr>
+<tr>
+<td style=text-align:center>2</td>
+<td style=text-align:left>400</td>
+</tr>
+<tr>
+<td style=text-align:center>3</td>
+<td style=text-align:left>8,902</td>
+</tr>
+<tr>
+<td style=text-align:center>4</td>
+<td style=text-align:left>197,281</td>
+</tr>
+<tr>
+<td style=text-align:center>5</td>
+<td style=text-align:left>4,865,609</td>
+</tr>
+<tr>
+<td style=text-align:center>6</td>
+<td style=text-align:left>119,060,324</td>
+</tr>
+</tbody>
+</table>
+<p>I wanted to be able to write a test like this:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020>#[test]</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>perft_start_position</span>()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>assert_eq!(perft(Position::startpos(),<span style=color:#bbb> </span><span style=color:#40a070>6</span>),<span style=color:#bbb> </span><span style=color:#40a070>119_060_324</span>);<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>To support this we need a function that counts moves in a position recursively:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>perft</span>(pos: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>mut</span><span style=color:#bbb> </span>Position,<span style=color:#bbb> </span>depth: <span style=color:#902000>u8</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>u32</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>depth<span style=color:#bbb> </span><span style=color:#666>==</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>return</span><span style=color:#bbb> </span><span style=color:#40a070>1</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>count<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span>;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>for</span><span style=color:#bbb> </span>mv<span style=color:#bbb> </span><span style=color:#007020;font-weight:700>in</span><span style=color:#bbb> </span>generate_moves(pos)<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>pos.do_move(mv);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#007020;font-weight:700>if</span><span style=color:#bbb> </span>pos.is_legal()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>count<span style=color:#bbb> </span><span style=color:#666>+=</span><span style=color:#bbb> </span>perft(pos,<span style=color:#bbb> </span>depth<span style=color:#bbb> </span><span style=color:#666>-</span><span style=color:#bbb> </span><span style=color:#40a070>1</span>);<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>        </span>pos.undo_move(mv);<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>count<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Note that I&rsquo;m checking the position is legal after applying each move because the engine only generates <em>pseudo-legal</em> moves, meaning that a move could leave the player in check, which would not be legal.</p>
+<p>It was extremely useful to have tests like this during development.
+They helped me find so many unusual bugs that I never would have noticed otherwise.
+For example, here&rsquo;s a position that highlights a common gotcha:</p>
+<div id=perft-position-3></div>
+<script>Chessboard2('perft-position-3',{position:'8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1'})</script>
+<p>In this position, if black plays a double pawn advance on the c-file then technically en-passant is available, and at a glance it looks like white&rsquo;s b-pawn could capture en-passant and move to <code>c6</code>.
+However, this would leave the white king in check by the rook on <code>h5</code>, making the move illegal.</p>
+<p>I currently verify this position to depth 7:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020>#[test]</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>perft_position_3</span>()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>assert_perft_for_fen(<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#4070a0>&#34;8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1&#34;</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#40a070>7</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#40a070>178_633_661</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span>);<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Another position I found useful was this one:</p>
+<div id=perft-position-4></div>
+<script>Chessboard2('perft-position-4',{position:'r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1'})</script>
+<p>White is in check so the number of possible moves should be limited, and after white&rsquo;s turn black has 8 ways to promote the pawn on <code>b2</code>.
+Black has castling rights on both sides of the board but can only castle queen-side because of white&rsquo;s knight and bishop blocking the king-side path.
+This position is great for testing lots of the subtle details in the rules.</p>
+<p>I currently verify this position to depth 6:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020>#[test]</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>perft_position_4</span>()<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>assert_perft_for_fen(<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#4070a0>&#34;r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1&#34;</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#40a070>6</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#40a070>706_045_033</span>,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>);<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>More positions and their move counts are available <a href=https://www.chessprogramming.org/Perft_Results>on the Chess Programming Wiki</a>.</p>
+<p>I combine these positions with several others to gain a level of confidence I don&rsquo;t think would be achievable with other forms of testing.
+The only drawback is that they&rsquo;re slow, <a href=https://github.com/tomcant/chess-rs/blob/ecd1b077f6211a98f144dad28f510b0748ab8446/.github/workflows/ci.yml#L39>so I only run these on CI</a>.
+For development, I run a reduced suite of perft tests that verify lower depths in order to keep the feedback loop fast.</p>
+<h2 id=performance-considerations>Performance Considerations</h2>
+<p>Once I&rsquo;ve got the engine working in its entirety I&rsquo;ll revisit some of these areas to work on performance.
+Here&rsquo;s a few ideas I have in mind:</p>
+<ul>
+<li>
+<p>The method I chose for sliding piece attacks involves a lot of repetitive work to find the available squares based on the blocking pieces.
+We can pre-calculate all of this so that the available squares are looked up based on the location of the piece and its blockers.
+The current most efficient method is <a href=https://www.chessprogramming.org/Magic_Bitboards>Magic bitboards</a>.</p>
+</li>
+<li>
+<p>Keep track of <a href=https://en.wikipedia.org/wiki/Pin_(chess)>pinned pieces</a> and always generate legal moves (rather than pseudo-legal).
+This would reduce the number of calls to <code>is_in_check()</code>.</p>
+</li>
+<li>
+<p>Generate all pawn advances simultaneously instead of on a per-pawn basis:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>pawn_advances<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>(pawns<span style=color:#bbb> </span><span style=color:#666>&lt;&lt;</span><span style=color:#bbb> </span><span style=color:#40a070>8</span>)<span style=color:#bbb> </span><span style=color:#666>&amp;</span><span style=color:#bbb> </span><span style=color:#666>!</span>board.occupancy();<span style=color:#bbb>
+</span></code></pre></div><p>We could use a similar idea for other pieces and this could have a dramatic effect on performance.</p>
+</li>
+</ul>
+<p>It will be interesting to benchmark before and after these changes.
+However, bear in mind that the biggest performance gains come from improving positional evaluation so that the engine can cut off large branches of the search tree, since this avoids having to generate moves for so many positions in the first place.</p>
+<h2 id=onwards-evaluation>Onwards: Evaluation</h2>
+<p>In the next post I&rsquo;ll write about how the engine assigns each chess position a score, the fundamental metric used to find the best move.</p>
+<p>See you then&mldr; ♟️</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
