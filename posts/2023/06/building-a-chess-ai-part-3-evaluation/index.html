@@ -1,0 +1,181 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Building a Chess AI, Part 3 – Evaluation &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/css/poole.css>
+<link type=text/css rel=stylesheet href=/css/syntax.css>
+<link type=text/css rel=stylesheet href=/css/hyde.css>
+<link type=text/css rel=stylesheet href=/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Building a Chess AI, Part 3 – Evaluation</h1>
+<time datetime=2023-06-18T00:00:00Z class=post-date>Sun, Jun 18, 2023</time>
+<ul>
+<li><a href=/posts/2023/03/building-a-chess-ai-part-1-game-state/>Part 1 – Game State</a></li>
+<li><a href=/posts/2023/05/building-a-chess-ai-part-2-move-generation/>Part 2 – Move Generation</a></li>
+<li><strong>Part 3 – Evaluation</strong></li>
+<li>Part 4 – Search, coming soon&mldr;</li>
+</ul>
+<p>This is the third post in a series I&rsquo;ve been writing about building a chess engine.
+The last post was about <a href=/posts/2023/05/building-a-chess-ai-part-2-move-generation/>move generation</a>, and in this post I&rsquo;m going to write about how the engine decides who&rsquo;s winning.</p>
+<p>If you&rsquo;re interested in seeing the full code, check out <a href=https://github.com/tomcant/chess-rs>tomcant/chess-rs</a> on GitHub.</p>
+<p>Hypothetically speaking, with an enormous amount of computing power the fate of any chess position could be determined by simulating every combination of moves until the end of the game.
+We would know for any position whether the colour-to-move can force a win, should offer a draw, or should simply resign.</p>
+<p>In reality, however, with <a href=https://en.wikipedia.org/wiki/Shannon_number>the number of possible chess positions</a> surpassing the number of atoms in the observable universe, we wouldn&rsquo;t even be able to store the unfathomably large game tree.
+Instead, engines estimate winning chances based on a number of heuristics:</p>
+<ul>
+<li>material balance,</li>
+<li>piece activity,</li>
+<li>pawn structure,</li>
+<li>king safety,</li>
+<li>central control,</li>
+<li>piece coordination</li>
+</ul>
+<p>&mldr; to name a few.</p>
+<p>The goal of evaluation is to assign each position a score that indicates the colour-to-move&rsquo;s winning chances.
+By simulating a number of turns into the future and scoring all the positions we could arrive at, the engine can pick the move that most likely leads to a better position.</p>
+<p>In the first post I wrote about one of the goals of the engine: <em>to play sensible chess</em>.
+What I&rsquo;ve found is that very few of these heuristics are actually required to start seeing some sensible moves.
+I started with the first two above, material balance and piece activity.</p>
+<h2 id=material-balance>Material Balance</h2>
+<p>The most obvious indicator of a winning position is when one colour has more pieces than the other, so this seems like a good place to start.
+If we assign relative values to each piece then the sum of the white pieces minus the sum of the black pieces is the material balance.</p>
+<p>These weightings vary from engine to engine, but it&rsquo;s typical to see something like this:</p>
+<table>
+<thead>
+<tr>
+<th style=text-align:center>Pawn</th>
+<th style=text-align:center>Knight</th>
+<th style=text-align:center>Bishop</th>
+<th style=text-align:center>Rook</th>
+<th style=text-align:center>Queen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style=text-align:center>1</td>
+<td style=text-align:center>3</td>
+<td style=text-align:center>3.5</td>
+<td style=text-align:center>5</td>
+<td style=text-align:center>9</td>
+</tr>
+</tbody>
+</table>
+<p>Some engines value knights and bishops equally, but I decided to value bishops slightly higher because having both of them on the board is often a positional advantage.
+The value of the king is not considered because a position without them would not be legal.</p>
+<p>A simple implementation is as follows:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>const</span><span style=color:#bbb> </span>PIECE_WEIGHTS: [<span style=color:#902000>i32</span>;<span style=color:#bbb> </span><span style=color:#40a070>12</span>]<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>[<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#40a070>100</span>,<span style=color:#bbb> </span><span style=color:#40a070>300</span>,<span style=color:#bbb> </span><span style=color:#40a070>350</span>,<span style=color:#bbb> </span><span style=color:#40a070>500</span>,<span style=color:#bbb> </span><span style=color:#40a070>900</span>,<span style=color:#bbb> </span><span style=color:#40a070>0</span>,<span style=color:#bbb> </span><span style=color:#60a0b0;font-style:italic>// WP to WK
+</span><span style=color:#60a0b0;font-style:italic></span><span style=color:#bbb>    </span><span style=color:#40a070>100</span>,<span style=color:#bbb> </span><span style=color:#40a070>300</span>,<span style=color:#bbb> </span><span style=color:#40a070>350</span>,<span style=color:#bbb> </span><span style=color:#40a070>500</span>,<span style=color:#bbb> </span><span style=color:#40a070>900</span>,<span style=color:#bbb> </span><span style=color:#40a070>0</span>,<span style=color:#bbb> </span><span style=color:#60a0b0;font-style:italic>// BP to BK
+</span><span style=color:#60a0b0;font-style:italic></span>];<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb></span><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>material_sum</span>(colour: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>i32</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>Piece::pieces_by_colour(colour)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>.fold(<span style=color:#40a070>0</span>,<span style=color:#bbb> </span><span style=color:#666>|</span>sum,<span style=color:#bbb> </span>piece<span style=color:#666>|</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>sum<span style=color:#bbb> </span><span style=color:#666>+</span><span style=color:#bbb> </span>PIECE_WEIGHTS[piece]<span style=color:#bbb> </span><span style=color:#666>*</span><span style=color:#bbb> </span>board.count_pieces(piece)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>})<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>Notice that the weight of each piece is multiplied by 100.
+This is to ensure that material balance is the dominant heuristic and prevents the engine from mistakenly thinking that a better score for another heuristic is worth losing material for.</p>
+<h2 id=piece-activity>Piece Activity</h2>
+<p>Piece activity is important because it directly impacts a piece&rsquo;s ability to influence the game.
+It&rsquo;s obvious from the following position that the activity of white&rsquo;s pieces is an advantage even though the material balance is even:</p>
+<div id=piece-activity-board></div>
+<p>With white to move, Stockfish 15 gives this position a score of almost +9.
+In terms of material balance that&rsquo;s the equivalent of playing with an extra queen!</p>
+<p>Using a technique known as <a href=https://www.chessprogramming.org/Piece-Square_Tables>piece-square tables</a> we can encourage the engine to put pieces on more active squares.
+The idea is to assign values to squares to indicate the desirability of putting particular pieces there.</p>
+<p>Below are the piece-square tables I&rsquo;m currently using for pawns.</p>
+<div class=chessboard-grid-double>
+<div style=text-align:center><em>White pawns</em></div>
+<div style=text-align:center><em>Black pawns</em></div>
+<div id=white-pawn-psqt class=piece-square-table></div>
+<div id=black-pawn-psqt class=piece-square-table></div>
+</div>
+<p>These values reward moving pawns to positions where they are more likely to promote.
+Notice the d- and e-files start with negative values so that the engine is more inclined to move these pawns first.
+This is useful at the start of the game when it&rsquo;s important to gain control of the centre.
+These tables are in fact mirror images of each other, because what&rsquo;s good for the white pawns would be equally good for black, only on the other side of the board.</p>
+<p>Similarly, below are the tables I&rsquo;m currently using for the kings.</p>
+<div class=chessboard-grid-double>
+<div style=text-align:center><em>White king</em></div>
+<div style=text-align:center><em>Black king</em></div>
+<div id=white-king-psqt class=piece-square-table></div>
+<div id=black-king-psqt class=piece-square-table></div>
+</div>
+<p>Here we can see the engine will favour positions with a castled king and will be discouraged from stepping forward at the start of the game.
+The central squares are given higher values because the king should avoid the edges of the board where the threat of checkmate is usually higher.</p>
+<p>The <a href=https://github.com/tomcant/chess-rs/blob/main/src/eval/psqt.rs#L34>tables for other pieces</a> work in similar ways: knights are more effective when they can reach the centre; bishops prefer the long diagonals; a white rook is usually more of a threat on the 7th rank; etc.</p>
+<p>Using these tables, here&rsquo;s how the engine calculates overall piece activity for a colour:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>piece_activity</span>(colour: <span style=color:#0e84b5;font-weight:700>Colour</span>,<span style=color:#bbb> </span>board: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Board</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>i32</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>Piece::pieces_by_colour(colour)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>.fold(<span style=color:#40a070>0</span>,<span style=color:#bbb> </span><span style=color:#666>|</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>activity,<span style=color:#bbb> </span>piece<span style=color:#666>|</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>pieces<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>board.pieces(piece);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>            </span><span style=color:#007020;font-weight:700>while</span><span style=color:#bbb> </span>pieces<span style=color:#bbb> </span><span style=color:#666>!=</span><span style=color:#bbb> </span><span style=color:#40a070>0</span><span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>                </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>square<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span>Square::next(<span style=color:#666>&amp;</span><span style=color:#007020;font-weight:700>mut</span><span style=color:#bbb> </span>pieces);<span style=color:#bbb>
+</span><span style=color:#bbb>                </span>activity<span style=color:#bbb> </span><span style=color:#666>+=</span><span style=color:#bbb> </span>PSQT[piece][square];<span style=color:#bbb>
+</span><span style=color:#bbb>            </span>}<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>            </span>activity<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>})<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>After material balance, piece-square tables give the best returns for the effort required, so it makes sense to implement these next.</p>
+<p>Although I&rsquo;ve kept my implementation simple, it&rsquo;s common to see engines use different tables depending on the phase of the game.
+This allows for fine tuning based on various criteria like number of pieces remaining, available space, etc.
+The difficulty is in determining when each phase of the game starts and ends.
+I&rsquo;ve left this for something to explore once the rest of the engine is working correctly.</p>
+<h2 id=the-evaluation-function>The Evaluation Function</h2>
+<p>With the logic for these heuristics now available, we can write a function that calculates a score given a position.</p>
+<p>Since chess is a <a href=https://en.wikipedia.org/wiki/Zero-sum_game>zero-sum game</a>, what&rsquo;s good for one player is equally bad for the other.
+This means we only need to evaluate the position from the perspective of one colour, say white, and simply negate it if the colour-to-move is black.</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rust data-lang=rust><span style=color:#007020;font-weight:700>fn</span> <span style=color:#06287e>eval</span>(pos: <span style=color:#007020>&amp;</span><span style=color:#0e84b5;font-weight:700>Position</span>)<span style=color:#bbb> </span>-&gt; <span style=color:#902000>i32</span> {<span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>board<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb> </span><span style=color:#666>&amp;</span>pos.board;<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>let</span><span style=color:#bbb> </span>eval<span style=color:#bbb> </span><span style=color:#666>=</span><span style=color:#bbb>
+</span><span style=color:#bbb>          </span>material_sum(White,<span style=color:#bbb> </span>board)<span style=color:#bbb> </span><span style=color:#666>-</span><span style=color:#bbb> </span>material_sum(Black,<span style=color:#bbb> </span>board)<span style=color:#bbb>
+</span><span style=color:#bbb>        </span><span style=color:#666>+</span><span style=color:#bbb> </span>piece_activity(White,<span style=color:#bbb> </span>board)<span style=color:#bbb> </span><span style=color:#666>-</span><span style=color:#bbb> </span>piece_activity(Black,<span style=color:#bbb> </span>board);<span style=color:#bbb>
+</span><span style=color:#bbb>
+</span><span style=color:#bbb>    </span><span style=color:#007020;font-weight:700>match</span><span style=color:#bbb> </span>pos.colour_to_move<span style=color:#bbb> </span>{<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>White<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span>eval,<span style=color:#bbb>
+</span><span style=color:#bbb>        </span>Black<span style=color:#bbb> </span><span style=color:#666>=&gt;</span><span style=color:#bbb> </span><span style=color:#666>-</span>eval,<span style=color:#bbb>
+</span><span style=color:#bbb>    </span>}<span style=color:#bbb>
+</span><span style=color:#bbb></span>}<span style=color:#bbb>
+</span></code></pre></div><p>In my implementation, the evaluation function doesn&rsquo;t need to consider checkmate or stalemate.
+As we&rsquo;ll see in the next post, these terminal states are handled during search and the evaluation function won&rsquo;t even be called in such positions.</p>
+<h2 id=in-search-of-the-best-move>In Search of the Best Move</h2>
+<p>The evaluation function assigns a score to a position based solely on the information in the position alone.
+On its own, the function doesn&rsquo;t see what might happen in a few moves time, or even on the very next move; it simply evaluates the position it sees during a single frame of the game.
+If the colour-to-move has more material and better piece activity but is about to be checkmated, the function will be none the wiser.
+It&rsquo;s often referred to as <em>static</em> evaluation for this reason.</p>
+<p>To use the evaluation function in a meaningful way we need to search through the positions the game could arrive at, using the score to guide us along the best path.
+In the next post I&rsquo;ll write about how the search works using various techniques such as iterative deepening, alpha-beta pruning, quiescence search and move ordering.</p>
+<p>♟️</p>
+<link rel=stylesheet href=https://unpkg.com/@chrisoakman/chessboard2@0.4.0/dist/chessboard2.min.css integrity=sha384-MZONbGYADvdl4hLalNF4d+E/6BVdYIty2eSgtkCbjG7iQJAe35a7ujTk1roZIdJ+ crossorigin=anonymous>
+<script src=https://unpkg.com/@chrisoakman/chessboard2@0.4.0/dist/chessboard2.min.js integrity=sha384-zl6zz0W4cEX3M2j9+bQ2hv9af6SF5pTFrnm/blYYjBmqSS3tdJChVrY9nenhLyNg crossorigin=anonymous></script>
+<style>.board-container-41a68{border-color:#b58863}.chessboard-21da3{width:50%;margin:2em auto}.chessboard-21da3 img{margin:0}.chessboard-grid-double{display:grid;grid-template-columns:1fr 1fr;gap:1em;align-items:center;margin:1em 0}.chessboard-grid-double .chessboard-21da3{width:auto;margin:0}.piece-square-table .chessboard-21da3 [data-square-coord]{position:relative}.piece-square-table .chessboard-21da3 [data-square-coord]:after{content:"";display:flex;align-items:center;justify-content:center;position:absolute;top:0;left:0;right:0;bottom:0;background-color:rgba(255,255,255,.5);color:#2f363d;font-size:x-small;font-weight:700;white-space:nowrap}@media(min-width:48em){.piece-square-table .chessboard-21da3 [data-square-coord]:after{font-size:smaller}}</style>
+<script>var pieceSquareTableMap=['a8','b8','c8','d8','e8','f8','g8','h8','a7','b7','c7','d7','e7','f7','g7','h7','a6','b6','c6','d6','e6','f6','g6','h6','a5','b5','c5','d5','e5','f5','g5','h5','a4','b4','c4','d4','e4','f4','g4','h4','a3','b3','c3','d3','e3','f3','g3','h3','a2','b2','c2','d2','e2','f2','g2','h2','a1','b1','c1','d1','e1','f1','g1','h1'];function pieceSquareTable(d,b){for(var c='',a=0;a<b.length;++a){if(b[a]===0)continue;c+='#'+d+' [data-square-coord="'+pieceSquareTableMap[a]+'"]:after { content: "'+b[a]+'"; }'}document.head.appendChild(document.createElement('style')).innerHTML=c}Chessboard2('piece-activity-board',{position:'rnbqkbnr/pppppppp/8/8/2PP1B2/1PNBPN1P/P1Q2PP1/2RR2K1 w kq - 0 1'}),Chessboard2('white-pawn-psqt'),pieceSquareTable('white-pawn-psqt',[0,0,0,0,0,0,0,0,60,60,60,60,60,60,60,60,40,40,40,50,50,40,40,40,20,20,20,40,40,20,20,20,5,5,15,30,30,10,5,5,5,5,10,20,20,5,5,5,5,5,5,-30,-30,5,5,5,0,0,0,0,0,0,0,0]),Chessboard2('black-pawn-psqt'),pieceSquareTable('black-pawn-psqt',[0,0,0,0,0,0,0,0,5,5,5,-30,-30,5,5,5,5,5,10,20,20,5,5,5,5,5,15,30,30,10,5,5,20,20,20,40,40,20,20,20,40,40,40,50,50,40,40,40,60,60,60,60,60,60,60,60,0,0,0,0,0,0,0,0]),Chessboard2('white-king-psqt'),pieceSquareTable('white-king-psqt',[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,20,0,0,0,0,0,0,20,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-10,-10,0,0,0,0,0,20,-10,-10,0,20,0]),Chessboard2('black-king-psqt'),pieceSquareTable('black-king-psqt',[0,0,20,-10,-10,0,20,0,0,0,0,-10,-10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,20,0,0,0,0,0,0,20,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])</script>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>
