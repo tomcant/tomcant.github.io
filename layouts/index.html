@@ -7,15 +7,12 @@
         {{ .Title }}
       </a>
     </h1>
-    <time datetime="{{ .Date.Format "2006-01-02T15:04:05Z0700" }}" class="post-date">{{ .Date.Format "Mon, Jan 2, 2006" }}</time>
-    {{ .Summary }}
-    {{ if .Truncated }}
-    <div class="read-more-link">
-      <a href="{{ if .Params.externalUrl }}{{ .Params.externalUrl }}{{ else }}{{ .RelPermalink }}{{ end }}">
-        Read More…
-      </a>
-    </div>
-    {{ end }}
+    <time datetime="{{ .Date.Format "2006-01-02T15:04:05Z0700" }}" class="post-date">
+      {{ .Date.Format "Mon, Jan 2, 2006" }}
+    </time>
+    <p>
+      {{ .Summary }}
+    </p>
   </article>
   {{- end }}
 </div>

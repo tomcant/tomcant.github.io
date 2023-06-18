@@ -1,12 +1,16 @@
 ---
 title: Building a Chess AI, Part 2 – Move Generation
+summary: "In my last post [I wrote about modelling game state](/posts/2023/03/building-a-chess-ai-part-1-game-state/), the first milestone of a project I've been working on to build a chess engine in Rust. In this post I'm going to write an overview of the second milestone: move generation."
 date: 2023-05-14
 ---
 
+- [Part 1 – Game State](/posts/2023/03/building-a-chess-ai-part-1-game-state/)
+- **Part 2 – Move Generation**
+- [Part 3 – Evaluation](/posts/2023/06/building-a-chess-ai-part-3-evaluation/)
+- Part 4 – Search, coming soon...
+
 In my last post [I wrote about modelling game state](/posts/2023/03/building-a-chess-ai-part-1-game-state/), the first milestone of a project I've been working on to build a chess engine in Rust.
 In this post I'm going to write an overview of the second milestone: move generation.
-
-<!--more-->
 
 If you're interested in seeing the full code, check out [tomcant/chess-rs](https://github.com/tomcant/chess-rs) on GitHub.
 
@@ -839,7 +843,7 @@ However, bear in mind that the biggest performance gains come from improving pos
 
 In the next post I'll write about how the engine assigns each chess position a score, the fundamental metric used to find the best move.
 
-See you then... ♟️
+♟️
 
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboard2@0.4.0/dist/chessboard2.min.css" integrity="sha384-MZONbGYADvdl4hLalNF4d+E/6BVdYIty2eSgtkCbjG7iQJAe35a7ujTk1roZIdJ+" crossorigin="anonymous">
 <script src="https://unpkg.com/@chrisoakman/chessboard2@0.4.0/dist/chessboard2.min.js" integrity="sha384-zl6zz0W4cEX3M2j9+bQ2hv9af6SF5pTFrnm/blYYjBmqSS3tdJChVrY9nenhLyNg" crossorigin="anonymous"></script>
@@ -890,7 +894,7 @@ See you then... ♟️
 .chessboard-grid-double {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1em 2em;
+  gap: 1em;
   align-items: center;
   margin: 1em 0;
 }

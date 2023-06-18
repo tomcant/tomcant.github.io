@@ -1,12 +1,16 @@
 ---
 title: Building a Chess AI, Part 1 – Game State
+summary: "I've been saying for years that when I get a bit of spare time I'd like to build a chess AI, or [chess engine](https://en.wikipedia.org/wiki/Chess_engine) as it is more commonly known. So a few months ago I set out to do just that and this post is an overview of the project's first major milestone: modelling game state."
 date: 2023-03-27
 ---
 
+- **Part 1 – Game State**
+- [Part 2 – Move Generation](/posts/2023/05/building-a-chess-ai-part-2-move-generation/)
+- [Part 3 – Evaluation](/posts/2023/06/building-a-chess-ai-part-3-evaluation/)
+- Part 4 – Search, coming soon...
+
 I've been saying for years that when I get a bit of spare time I'd like to build a chess AI, or [chess engine](https://en.wikipedia.org/wiki/Chess_engine) as it is more commonly known.
 So a few months ago I set out to do just that and this post is an overview of the project's first major milestone: modelling game state.
-
-<!--more-->
 
 If you're interested in seeing the full code, check out [tomcant/chess-rs](https://github.com/tomcant/chess-rs) on GitHub.
 
@@ -417,4 +421,4 @@ This post covered how the engine models game state, which was the first mileston
 In the next post I'll write about move generation: finding all the available moves in a position.
 This will require expanding on the use of bitboards to calculate which squares are under attack, and we'll see a couple of approaches for effectively testing move generation.
 
-Until then... ♟️
+♟️
