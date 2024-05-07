@@ -1,0 +1,105 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=generator content="Hugo 0.91.0">
+<title>Using AWS SSM for Shell Access on EC2 Without Internet Access &#183; Tom Cant &ndash; Developer</title>
+<link type=text/css rel=stylesheet href=/css/print.css media=print>
+<link type=text/css rel=stylesheet href=/css/poole.css>
+<link type=text/css rel=stylesheet href=/css/syntax.css>
+<link type=text/css rel=stylesheet href=/css/hyde.css>
+<link type=text/css rel=stylesheet href=/css/custom.css>
+<link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+<link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png>
+<link rel="shortcut icon" href=/favicon.png>
+</head>
+<body>
+<aside class=sidebar>
+<div class="container sidebar-sticky">
+<div class=sidebar-about>
+<a href=https://tomcant.dev/><h1>Tom Cant</h1></a>
+<p class=lead>Developer</p>
+</div>
+<a href=https://github.com/tomcant><svg height="20" class="octicon octicon-mark-github mr-2 v-align-middle" fill="#fff" aria-label="GitHub" viewBox="0 0 16 16" width="20" role="img"><path fill-rule="evenodd" d="M8 0C3.58.0.0 3.58.0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38.0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95.0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12.0.0.67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15.0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48.0 1.07-.01 1.93-.01 2.2.0.21.15.46.55.38A8.013 8.013.0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+</a>
+</div>
+</aside>
+<main class="content container">
+<div class=post>
+<h1>Using AWS SSM for Shell Access on EC2 Without Internet Access</h1>
+<time datetime=2024-05-03T00:00:00Z class=post-date>Fri, May 3, 2024</time>
+<p>I&rsquo;ve recently been working on a personal project that uses a Postgres relational database for persistence.
+I&rsquo;m running the project on AWS and using EC2 instead of RDS to keep costs down.
+I need shell access to the instance for inspecting configuration, but it&rsquo;s attached to a private subnet and has no public IP.</p>
+<p>One option would be to run a public tunnel/bastion instance for proxying SSH connections into the network, but I didn&rsquo;t really want the extra hassle (or indeed the attack surface), so I turned to <a href=https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html>SSM Session Manager</a> instead.
+Session Manager offers the ability to connect to an EC2 instance for shell access just like connecting via SSH, except there&rsquo;s no need to open any ports or manage SSH keys.
+Instead, it works based on IAM and a connection with the SSM Agent software installed on the instance.</p>
+<p>I thought this would be relatively trivial to setup because I&rsquo;m using Amazon Linux (AL2023) which comes with the agent pre-installed.
+However, I hadn&rsquo;t configured internet access from the private subnet and it turns out the agent needs to talk to the following endpoints using HTTPS in order for this feature to work:</p>
+<ul>
+<li><strong>ssm</strong>.&lt;region>.amazonaws.com</li>
+<li><strong>ssmmessages</strong>.&lt;region>.amazonaws.com</li>
+<li><strong>ec2messages</strong>.&lt;region>.amazonaws.com</li>
+</ul>
+<p>Configuring internet access wasn&rsquo;t something I wanted to do just for the sake of gaining shell access with SSM, so I checked the VPC Endpoints documentation to see if access to these services could be configured privately within the VPC instead.
+To my delight AWS do indeed support these services via <em>Interface endpoints</em>, so the only additional infrastructure I required was an Elastic Network Interface and Security Group per endpoint.</p>
+<p>In case it might be useful to someone, here&rsquo;s the Terraform configuration I used to provision these resources:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>locals</span> {
+  endpoints <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>toset</span>([<span style=color:#4070a0>&#34;ssm&#34;, &#34;ssmmessages&#34;, &#34;ec2messages&#34;</span>])
+}
+
+<span style=color:#007020;font-weight:700>data</span> <span style=color:#4070a0>&#34;aws_vpc_endpoint_service&#34; &#34;endpoints&#34;</span> {
+  for_each <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>local</span>.<span style=color:#007020;font-weight:700>endpoints</span>
+
+  service <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>each</span>.<span style=color:#007020;font-weight:700>value</span>
+}
+
+<span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_vpc_endpoint&#34; &#34;endpoints&#34;</span> {
+  for_each <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>local</span>.<span style=color:#007020;font-weight:700>endpoints</span>
+
+  service_name        <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>data</span>.<span style=color:#007020;font-weight:700>aws_vpc_endpoint_service</span>.<span style=color:#007020;font-weight:700>endpoints</span>[<span style=color:#007020;font-weight:700>each</span>.<span style=color:#007020;font-weight:700>value</span>].<span style=color:#007020;font-weight:700>service_name</span>
+  security_group_ids  <span style=color:#666>=</span> [<span style=color:#007020;font-weight:700>aws_security_group</span>.<span style=color:#007020;font-weight:700>endpoints</span>[<span style=color:#007020;font-weight:700>each</span>.<span style=color:#007020;font-weight:700>value</span>].<span style=color:#007020;font-weight:700>id</span>]
+  subnet_ids          <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>aws_subnet</span>.<span style=color:#007020;font-weight:700>private</span>.<span>*</span>.<span style=color:#007020;font-weight:700>id</span>
+  vpc_id              <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>aws_vpc</span>.<span style=color:#007020;font-weight:700>main</span>.<span style=color:#007020;font-weight:700>id</span>
+  vpc_endpoint_type   <span style=color:#666>=</span> <span style=color:#4070a0>&#34;Interface&#34;</span>
+  private_dns_enabled <span style=color:#666>=</span> <span style=color:#902000>true</span>
+
+  tags <span style=color:#666>=</span> {
+    Name <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>each</span>.<span style=color:#007020;font-weight:700>value</span>
+  }
+}
+
+<span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_security_group&#34; &#34;endpoints&#34;</span> {
+  for_each <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>local</span>.<span style=color:#007020;font-weight:700>endpoints</span>
+
+  name_prefix <span style=color:#666>=</span> <span style=color:#4070a0>&#34;vpc-endpoint-${each.value}-&#34;</span>
+  description <span style=color:#666>=</span> <span style=color:#4070a0>&#34;VPC Endpoint Security Group for ${each.value}&#34;</span>
+  vpc_id      <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>aws_vpc</span>.<span style=color:#007020;font-weight:700>main</span>.<span style=color:#007020;font-weight:700>id</span>
+
+  tags <span style=color:#666>=</span> {
+    Name <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>each</span>.<span style=color:#007020;font-weight:700>value</span>
+  }
+}
+
+<span style=color:#007020;font-weight:700>resource</span> <span style=color:#4070a0>&#34;aws_security_group_rule&#34; &#34;endpoints&#34;</span> {
+  for_each <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>local</span>.<span style=color:#007020;font-weight:700>endpoints</span>
+
+  type              <span style=color:#666>=</span> <span style=color:#4070a0>&#34;ingress&#34;</span>
+  cidr_blocks       <span style=color:#666>=</span> [<span style=color:#4070a0>&#34;0.0.0.0/0&#34;</span>]
+  protocol          <span style=color:#666>=</span> <span style=color:#4070a0>&#34;tcp&#34;</span>
+  from_port         <span style=color:#666>=</span> <span style=color:#40a070>443</span>
+  to_port           <span style=color:#666>=</span> <span style=color:#40a070>443</span>
+  security_group_id <span style=color:#666>=</span> <span style=color:#007020;font-weight:700>aws_security_group</span>.<span style=color:#007020;font-weight:700>endpoints</span>[<span style=color:#007020;font-weight:700>each</span>.<span style=color:#007020;font-weight:700>value</span>].<span style=color:#007020;font-weight:700>id</span>
+}
+</code></pre></div><p><small><em>Tested with Terraform v1.8.2 and AWS provider v5.44.0, the latest at the time of writing.</em></small></p>
+<p>And with that, I can now run the following AWS CLI command locally to access the instance:</p>
+<div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>aws ssm start-session --target &lt;instance-id&gt;
+</code></pre></div><p>Bear in mind this requires the AWS CLI and the <a href=https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html>Session Manager plugin</a> to be installed on the machine you run this command on.</p>
+<p>The only downside I can think of with this solution is the cost; each VPC Endpoint is $0.79 per day (at the time of writing), which quickly racks up! Not ideal for a side project but could be worth it if you have a bigger budget.</p>
+<p>In the end it turned out that my application needed internet access anyway so I removed this configuration in favour of a <a href=https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html>custom-built NAT instance</a> (not a NAT Gateway, those are expensive too), but this still seemed like a good exercise in configuring shell access when both inbound and outbound access is limited.</p>
+</div>
+</main>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW96D0BDH1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-XW96D0BDH1',{anonymize_ip:!1})}</script>
+</body>
+</html>

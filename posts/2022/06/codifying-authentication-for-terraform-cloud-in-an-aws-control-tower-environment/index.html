@@ -81,7 +81,7 @@ a Control Tower implementation detail if we can help it; AWS could change or rem
 Instead, we use this role in a one-off task to
 create the <code>InfraProvisioner</code> role, which we know will be safe to use going forward. This also allows us to attach a
 custom policy with restrictions on what Terraform is allowed to do.</p>
-<p>With this mind, here&rsquo;s how we configure the AWS provider to provision the roles:</p>
+<p>With this in mind, here&rsquo;s how we configure the AWS provider to provision the roles:</p>
 <div class="highlight-filename before">projects/infra-provisioner-roles/config.tf</div>
 <div class=highlight><pre tabindex=0 style=background-color:#f0f0f0;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#007020;font-weight:700>provider</span> <span style=color:#4070a0>&#34;aws&#34;</span> {
   alias      <span style=color:#666>=</span> <span style=color:#4070a0>&#34;prod&#34;</span>
