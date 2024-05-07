@@ -74,7 +74,7 @@ Instead, we use this role in a one-off task to
 create the `InfraProvisioner` role, which we know will be safe to use going forward. This also allows us to attach a
 custom policy with restrictions on what Terraform is allowed to do.
 
-With this mind, here's how we configure the AWS provider to provision the roles:
+With this in mind, here's how we configure the AWS provider to provision the roles:
 
 <div class="highlight-filename before">projects/infra-provisioner-roles/config.tf</div>
 
